@@ -1,0 +1,12 @@
+{
+  "documents": [
+    {
+      "name": "Claim Guideline - Completeness",
+      "path": "reference_docs/guideline_completeness.txt"
+    },
+    {
+      "name": "Claim Guideline - Validation",
+      "path": "reference_docs/guideline_validation.txt"
+    }
+  ]
+}

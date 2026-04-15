@@ -1,0 +1,3 @@
+Required supporting artifacts should include invoice number, invoice date, and partner identification.
+Proof of performance can include delivery notes, signed completion, attendance evidence, or photos.
+Invoice values should provide net amount, VAT/tax, and grand total where applicable.

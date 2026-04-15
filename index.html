@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Claim Validation Tool (MVP)</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div>
+        <h1>Claim Validation Tool</h1>
+        <p class="subtitle">Internal MVP · Analysis only · No decision engine</p>
+      </div>
+      <div class="audit-pill" id="audit-pill">Ready for input</div>
+    </header>
+
+    <main class="layout">
+      <section class="panel input-panel">
+        <h2>Claim Submission Inputs</h2>
+        <p class="panel-subtitle">Submit claim details and documents. The tool returns neutral analysis for manual review.</p>
+        <form id="claim-form" novalidate>
+          <label for="partnerName">Partner Name</label>
+          <input id="partnerName" name="partnerName" type="text" placeholder="Enter partner name" required />
+
+          <label for="claimedAmount">Claimed Amount</label>
+          <input
+            id="claimedAmount"
+            name="claimedAmount"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="Enter claimed amount"
+            required
+          />
+
+          <label for="documents">Uploaded Documents</label>
+          <input
+            id="documents"
+            name="documents"
+            type="file"
+            accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.txt,.csv,.json"
+            multiple
+            required
+          />
+          <p class="help-text">Accepted: PDF, PNG/JPG, DOC/DOCX, XLS/XLSX (plus text formats for deeper browser extraction)</p>
+
+          <button type="submit">Run Analysis</button>
+        </form>
+      </section>
+
+      <section class="panel results-panel" id="results" hidden>
+        <div class="results-heading">
+          <h2>Analysis Results</h2>
+          <p id="generatedAt"></p>
+        </div>
+
+        <div class="grid" id="results-grid">
+          <article class="result-card" id="claim-inputs"></article>
+          <article class="result-card" id="doc-summary"></article>
+          <article class="result-card" id="extracted-data"></article>
+          <article class="result-card" id="matching-analysis"></article>
+          <article class="result-card" id="guideline-analysis"></article>
+          <article class="result-card ai-card" id="ai-screening"></article>
+          <article class="result-card" id="overall-summary"></article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <span>Project by - Govind Amilkanthwar</span>
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+</html>

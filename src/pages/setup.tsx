@@ -32,6 +32,12 @@ export default function SetupPage() {
         return;
       }
 
+      // DB already set up — advance to admin creation
+      if (res.status === 400 && data.error?.includes('already set up')) {
+        setStep('admin');
+        return;
+      }
+
       if (data.manual && data.sql) {
         setManualSQL(data.sql);
         setError(data.hint ?? 'Auto-migration failed. Paste the SQL manually, then click "I ran the SQL" below.');
@@ -64,6 +70,7 @@ export default function SetupPage() {
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error); return; }
+      if (data.alreadyExists) { setEmail(data.email || email); }
       setStep('done');
     } finally {
       setBusy(false);

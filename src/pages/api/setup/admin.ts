@@ -13,7 +13,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // Check if tables exist and if any admin already exists
   const { data: existingAdmin, error: checkErr } = await adminClient
     .from('profiles')
-    .select('id')
+    .select('id, email')
     .eq('role', 'admin')
     .limit(1)
     .maybeSingle();
@@ -25,7 +25,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (existingAdmin) {
-    return res.status(400).json({ error: 'Admin already exists. Use the admin panel to manage users.' });
+    return res.status(200).json({ ok: true, alreadyExists: true, email: existingAdmin.email ?? '' });
   }
 
   // Check if user already exists in auth (from a previous failed attempt)

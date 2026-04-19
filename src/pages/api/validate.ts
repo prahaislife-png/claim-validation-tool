@@ -13,38 +13,39 @@ export const config = {
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-function loadSourceGuidelines(): string {
-  const referenceDir = path.join(process.cwd(), 'reference_docs');
+function loadGuidelines(): string {
+  const dir = path.join(process.cwd(), 'reference_docs');
   const parts: string[] = [];
   try {
-    const files = fs.readdirSync(referenceDir);
-    for (const file of files) {
-      if (file.endsWith('.txt')) {
-        const text = fs.readFileSync(path.join(referenceDir, file), 'utf-8');
-        parts.push(`=== ${file} ===\n${text}`);
+    for (const f of fs.readdirSync(dir)) {
+      if (f.endsWith('.txt')) {
+        parts.push(`=== ${f} ===\n${fs.readFileSync(path.join(dir, f), 'utf-8')}`);
       }
     }
-  } catch { /* no guidelines directory */ }
-  return parts.length ? parts.join('\n\n') : 'Apply standard partner marketing fund (MDF) claim validation practices.';
+  } catch { /* no reference_docs dir */ }
+  return parts.length
+    ? parts.join('\n\n')
+    : 'Apply standard partner MDF claim validation practices.';
 }
 
-async function toTextContent(doc: UploadedDocument): Promise<string> {
+async function toText(doc: UploadedDocument): Promise<string> {
   const ext = doc.name.split('.').pop()?.toLowerCase() ?? '';
   try {
     const buf = Buffer.from(doc.content, 'base64');
     if (['docx', 'doc'].includes(ext)) {
       const mammoth = await import('mammoth');
-      const r = await mammoth.extractRawText({ buffer: buf });
-      return r.value;
+      return (await mammoth.extractRawText({ buffer: buf })).value;
     }
     if (['xlsx', 'xls'].includes(ext)) {
       const XLSX = await import('xlsx');
       const wb = XLSX.read(buf, { type: 'buffer' });
-      return wb.SheetNames.map(n => `[Sheet: ${n}]\n${XLSX.utils.sheet_to_csv(wb.Sheets[n])}`).join('\n\n');
+      return wb.SheetNames.map(n =>
+        `[Sheet: ${n}]\n${XLSX.utils.sheet_to_csv(wb.Sheets[n])}`
+      ).join('\n\n');
     }
     return buf.toString('utf-8');
   } catch {
-    return `[Unable to extract text from ${doc.name}]`;
+    return `[Could not extract text from ${doc.name}]`;
   }
 }
 
@@ -53,30 +54,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return res.status(500).json({
-      error: 'ANTHROPIC_API_KEY is not set. Create a .env.local file with ANTHROPIC_API_KEY=your_key',
+      error: 'ANTHROPIC_API_KEY not set. Add it to Vercel Environment Variables.',
     });
   }
 
-  const { claimData, documents }: { claimData: ClaimFormData; documents: UploadedDocument[] } = req.body;
+  const { claimData, documents = [] }: {
+    claimData: ClaimFormData;
+    documents: UploadedDocument[];
+  } = req.body ?? {};
+
   if (!claimData) return res.status(400).json({ error: 'Missing claimData' });
 
-  const guidelines = loadSourceGuidelines();
+  const guidelines = loadGuidelines();
   const now = new Date().toISOString();
-
-  const systemPrompt = `You are a senior claims validation analyst for a partner marketing development fund (MDF) program.
-Analyze claim submissions against uploaded evidence documents and program guidelines.
-Return ONLY a valid JSON object — no markdown fences, no prose outside the JSON.`;
 
   const claimBlock = `=== CLAIM SUBMISSION ===
 Partner ID: ${claimData.partnerId}
 Partner Name: ${claimData.partnerName}
 Budget Period: ${claimData.budgetPeriodFrom} to ${claimData.budgetPeriodTo}
-Budget Allocation Amount: €${claimData.budgetAllocationAmount}
+Budget Allocation: €${claimData.budgetAllocationAmount}
 Category: ${claimData.category}
 Request Number: ${claimData.requestNumber}
 Activity Type: ${claimData.activityType}
 Activity: ${claimData.activity}
-Fund Request Submitted Date: ${claimData.fundRequestSubmittedDate}
+Fund Request Submitted: ${claimData.fundRequestSubmittedDate}
 Fund Approved Date: ${claimData.fundApprovedDate || 'Not provided'}
 Activity Start Date: ${claimData.activityStartDate}
 Activity End Date: ${claimData.activityEndDate}
@@ -89,56 +90,61 @@ ${guidelines}
 === END GUIDELINES ===
 
 === VALIDATION TASK ===
-Validate the above claim against the provided evidence and guidelines. Return exactly this JSON (no extra text):
+Analyze the claim submission against all provided evidence documents and the guidelines above.
+Return ONLY valid JSON — no markdown fences, no extra text outside the JSON object.
 
 {
   "decision": "APPROVED" | "REJECTED" | "NEEDS_REVIEW",
-  "confidence": <0-100 integer>,
-  "summary": "<2-3 sentence professional executive summary of the validation outcome>",
+  "confidence": <0-100>,
+  "summary": "<2-3 sentence executive summary>",
   "fieldValidations": [
-    { "field": "partnerId",              "label": "Partner ID",              "submittedValue": "...", "extractedValue": "...", "status": "pass|fail|warning|missing|partial", "note": "..." },
-    { "field": "partnerName",            "label": "Partner Name",            "submittedValue": "...", "extractedValue": "...", "status": "...", "note": "..." },
-    { "field": "budgetAllocationAmount", "label": "Budget Allocation",       "submittedValue": "...", "extractedValue": "...", "status": "...", "note": "..." },
-    { "field": "requestNumber",          "label": "Request Number",          "submittedValue": "...", "extractedValue": "...", "status": "...", "note": "..." },
-    { "field": "activityStartDate",      "label": "Activity Start Date",     "submittedValue": "...", "extractedValue": "...", "status": "...", "note": "..." },
-    { "field": "activityEndDate",        "label": "Activity End Date",       "submittedValue": "...", "extractedValue": "...", "status": "...", "note": "..." },
-    { "field": "fundingApproved",        "label": "Funding Approved",        "submittedValue": "...", "extractedValue": "...", "status": "...", "note": "..." },
-    { "field": "category",               "label": "Category",                "submittedValue": "...", "extractedValue": "...", "status": "...", "note": "..." },
-    { "field": "activityType",           "label": "Activity Type",           "submittedValue": "...", "extractedValue": "...", "status": "...", "note": "..." },
-    { "field": "activity",               "label": "Activity Description",    "submittedValue": "...", "extractedValue": "...", "status": "...", "note": "..." }
+    {"field":"partnerId","label":"Partner ID","submittedValue":"...","extractedValue":"...","status":"pass|fail|warning|missing|partial","note":"..."},
+    {"field":"partnerName","label":"Partner Name","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
+    {"field":"budgetAllocationAmount","label":"Budget Allocation","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
+    {"field":"requestNumber","label":"Request Number","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
+    {"field":"activityStartDate","label":"Activity Start Date","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
+    {"field":"activityEndDate","label":"Activity End Date","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
+    {"field":"fundingApproved","label":"Funding Approved","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
+    {"field":"category","label":"Category","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
+    {"field":"activityType","label":"Activity Type","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
+    {"field":"activity","label":"Activity Description","submittedValue":"...","extractedValue":"...","status":"...","note":"..."}
   ],
   "documentAnalysis": [
-    { "fileName": "...", "type": "Invoice|Receipt|Attendance|Photo|Contract|Quote|Other", "summary": "...", "keyDataFound": ["..."], "issues": ["..."], "relevance": "high|medium|low" }
+    {"fileName":"...","type":"Invoice|Receipt|Attendance|Photo|Contract|Quote|Other","summary":"...","keyDataFound":["..."],"issues":["..."],"relevance":"high|medium|low"}
   ],
   "guidelineChecks": [
-    { "requirement": "Invoice with invoice number present",          "status": "pass|fail|warning|missing|partial", "detail": "..." },
-    { "requirement": "Partner identification on documents",          "status": "...", "detail": "..." },
-    { "requirement": "Monetary amounts reconciled",                  "status": "...", "detail": "..." },
-    { "requirement": "Activity dates confirmed in evidence",         "status": "...", "detail": "..." },
-    { "requirement": "Proof of performance provided",                "status": "...", "detail": "..." },
-    { "requirement": "Currency consistency throughout",              "status": "...", "detail": "..." },
-    { "requirement": "Funding does not exceed budget allocation",    "status": "...", "detail": "..." },
-    { "requirement": "All required document types present",         "status": "...", "detail": "..." }
+    {"requirement":"Invoice with invoice number present","status":"pass|fail|warning|missing|partial","detail":"..."},
+    {"requirement":"Partner identification on documents","status":"...","detail":"..."},
+    {"requirement":"Monetary amounts reconciled","status":"...","detail":"..."},
+    {"requirement":"Activity dates confirmed in evidence","status":"...","detail":"..."},
+    {"requirement":"Proof of performance provided","status":"...","detail":"..."},
+    {"requirement":"Currency consistency throughout","status":"...","detail":"..."},
+    {"requirement":"Funding does not exceed budget allocation","status":"...","detail":"..."},
+    {"requirement":"All required document types present","status":"...","detail":"..."}
   ],
   "issues": [
-    { "severity": "critical|high|medium|low|info", "category": "...", "description": "...", "recommendation": "..." }
+    {"severity":"critical|high|medium|low|info","category":"...","description":"...","recommendation":"..."}
   ],
   "recommendations": ["..."],
   "auditTimestamp": "${now}",
-  "processingNotes": "Analyzed ${(documents ?? []).length} document(s)."
+  "processingNotes": "Analyzed ${documents.length} document(s) against program guidelines."
 }
 
 Decision rules:
-- APPROVED: All critical fields verified, evidence complete, no critical/high issues.
-- NEEDS_REVIEW: Minor discrepancies, partial evidence, or medium issues requiring human review.
-- REJECTED: Amount mismatches, missing critical documents, or policy violations detected.
+- APPROVED: critical fields verified, evidence complete, no critical/high issues.
+- NEEDS_REVIEW: minor discrepancies, partial evidence, or medium issues.
+- REJECTED: amount mismatches, missing critical evidence, or policy violations.
 === END TASK ===`;
 
   try {
-    type AnyBlock = Record<string, unknown>;
-    const content: AnyBlock[] = [{ type: 'text', text: claimBlock }];
+    type Block =
+      | Anthropic.TextBlockParam
+      | Anthropic.ImageBlockParam
+      | { type: 'document'; source: { type: 'base64'; media_type: 'application/pdf'; data: string }; title?: string };
 
-    for (const doc of (documents ?? [])) {
+    const content: Block[] = [{ type: 'text', text: claimBlock }];
+
+    for (const doc of documents) {
       if (doc.type === 'application/pdf') {
         content.push({
           type: 'document',
@@ -146,33 +152,34 @@ Decision rules:
           title: doc.name,
         });
       } else if (doc.type.startsWith('image/')) {
-        const mt = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(doc.type) ? doc.type : 'image/jpeg';
+        const mt = (['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(doc.type)
+          ? doc.type
+          : 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
         content.push({ type: 'image', source: { type: 'base64', media_type: mt, data: doc.content } });
-        content.push({ type: 'text', text: `[Image filename: ${doc.name}]` });
+        content.push({ type: 'text', text: `[Above image filename: ${doc.name}]` });
       } else {
-        const text = doc.isText ? doc.content : await toTextContent(doc);
+        const text = doc.isText ? doc.content : await toText(doc);
         content.push({ type: 'text', text: `[DOCUMENT: ${doc.name}]\n${text}\n[END DOCUMENT]` });
       }
     }
 
     content.push({ type: 'text', text: instructionBlock });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const response = await (anthropic.messages.create as any)({
+    const response = await anthropic.messages.create({
       model: 'claude-opus-4-7',
       max_tokens: 4096,
-      system: systemPrompt,
-      messages: [{ role: 'user', content }],
+      system: 'You are a senior claims validation analyst. Return only valid JSON — no markdown, no prose outside the JSON.',
+      messages: [{ role: 'user', content: content as Anthropic.MessageParam['content'] }],
     });
 
-    const raw: string = response.content[0]?.type === 'text' ? response.content[0].text : '';
+    const raw = response.content[0]?.type === 'text' ? response.content[0].text : '';
     const match = raw.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error('Claude returned no parseable JSON');
+    if (!match) throw new Error('No JSON in Claude response');
 
     const result: ValidationResult = JSON.parse(match[0]);
     result.auditTimestamp = now;
     return res.status(200).json({ result });
-  } catch (err: unknown) {
+  } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[validate]', msg);
     return res.status(500).json({ error: msg });

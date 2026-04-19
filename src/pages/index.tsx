@@ -4,9 +4,9 @@ import clsx from 'clsx';
 import {
   Upload, FileText, Image as ImageIcon, File as FileIcon, X, CheckCircle, XCircle,
   AlertTriangle, ChevronRight, Loader2, Shield, BarChart3, ClipboardList,
-  FileCheck, AlertOctagon, RefreshCw, Info, FileSpreadsheet, Building2,
-  Calendar, Euro, Hash, Tag, Activity as ActivityIcon, Clock, Sparkles,
-  FileSearch, Layers, Plus, ArrowRight,
+  FileCheck, AlertOctagon, Info, FileSpreadsheet, Building2,
+  Calendar, Euro, Hash, Clock, Sparkles,
+  FileSearch, Layers, Plus, ArrowRight, Printer, FileDown,
 } from 'lucide-react';
 import type {
   ClaimFormData, UploadedDocument, ValidationResult, StatusType, SeverityType, DecisionType,
@@ -23,11 +23,24 @@ const ACTIVITY_MAP: Record<string, string[]> = {
   Other: ['Other'],
 };
 
-const REQUIRED: (keyof ClaimFormData)[] = [
-  'partnerId', 'partnerName', 'budgetPeriodFrom', 'budgetPeriodTo',
-  'budgetAllocationAmount', 'category', 'requestNumber', 'activityType',
-  'activity', 'fundRequestSubmittedDate', 'activityStartDate', 'activityEndDate', 'fundingApproved',
-];
+const REQUIRED: (keyof ClaimFormData)[] = ['partnerId', 'partnerName'];
+
+const FIELD_LABELS: Record<keyof ClaimFormData, string> = {
+  partnerId: 'Partner ID',
+  partnerName: 'Partner Name',
+  budgetPeriodFrom: 'Budget Period From',
+  budgetPeriodTo: 'Budget Period To',
+  budgetAllocationAmount: 'Budget Allocation (€)',
+  category: 'Category',
+  requestNumber: 'Request Number',
+  activityType: 'Activity Type',
+  activity: 'Activity',
+  fundRequestSubmittedDate: 'Fund Request Submitted',
+  fundApprovedDate: 'Fund Approved Date',
+  activityStartDate: 'Activity Start Date',
+  activityEndDate: 'Activity End Date',
+  fundingApproved: 'Funding Approved (€)',
+};
 
 const EMPTY_FORM: ClaimFormData = {
   partnerId: '', partnerName: '', budgetPeriodFrom: '', budgetPeriodTo: '',
@@ -82,6 +95,7 @@ export default function Page() {
   const [tab, setTab] = useState<'overview' | 'fields' | 'documents' | 'guidelines' | 'issues'>('overview');
   const [drag, setDrag] = useState(false);
   const [step, setStep] = useState(0);
+  const [showSummary, setShowSummary] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const STEPS = useMemo(() => ([
@@ -140,7 +154,7 @@ export default function Page() {
   }, [addFiles]);
 
   const submit = async () => {
-    if (!validate()) { setError('Please fill in all required fields'); return; }
+    if (!validate()) { setError('Partner ID and Partner Name are required'); return; }
     if (docs.length === 0) { setError('Please upload at least one supporting document'); return; }
     setError(null); setResult(null); setBusy(true); setStep(0); setTab('overview');
 
@@ -189,7 +203,10 @@ export default function Page() {
               </div>
               <div>
                 <h1 className="text-base font-bold text-slate-900 leading-tight">Claim Validation Portal</h1>
-                <p className="text-xs text-slate-500">Partner Marketing Fund (MDF) Analysis</p>
+                <p className="text-xs text-slate-500">
+                  Partner Marketing Fund (MDF) Analysis
+                  <span className="hidden sm:inline"> · A project by <span className="font-semibold text-brand-700">Govind Amilkanthwar</span></span>
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -237,30 +254,30 @@ export default function Page() {
                 </div>
                 <div className="card-body grid grid-cols-2 gap-4">
                   <div>
-                    <label className="label">Budget Period From *</label>
-                    <input type="date" className={clsx('input-field', errs.budgetPeriodFrom && 'error')}
+                    <label className="label">Budget Period From</label>
+                    <input type="date" className="input-field"
                       value={claim.budgetPeriodFrom} onChange={e => setField('budgetPeriodFrom', e.target.value)} />
                   </div>
                   <div>
-                    <label className="label">Budget Period To *</label>
-                    <input type="date" className={clsx('input-field', errs.budgetPeriodTo && 'error')}
+                    <label className="label">Budget Period To</label>
+                    <input type="date" className="input-field"
                       value={claim.budgetPeriodTo} onChange={e => setField('budgetPeriodTo', e.target.value)} />
                   </div>
                   <div>
-                    <label className="label">Budget Allocation (€) *</label>
-                    <input type="number" step="0.01" className={clsx('input-field', errs.budgetAllocationAmount && 'error')}
+                    <label className="label">Budget Allocation (€)</label>
+                    <input type="number" step="0.01" className="input-field"
                       placeholder="1614.77" value={claim.budgetAllocationAmount}
                       onChange={e => setField('budgetAllocationAmount', e.target.value)} />
                   </div>
                   <div>
-                    <label className="label">Funding Approved (€) *</label>
-                    <input type="number" step="0.01" className={clsx('input-field', errs.fundingApproved && 'error')}
+                    <label className="label">Funding Approved (€)</label>
+                    <input type="number" step="0.01" className="input-field"
                       placeholder="1614.77" value={claim.fundingApproved}
                       onChange={e => setField('fundingApproved', e.target.value)} />
                   </div>
                   <div className="col-span-2">
-                    <label className="label">Category *</label>
-                    <select className={clsx('input-field', errs.category && 'error')}
+                    <label className="label">Category</label>
+                    <select className="input-field"
                       value={claim.category} onChange={e => setField('category', e.target.value)}>
                       <option value="">Select category</option>
                       {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
@@ -277,21 +294,21 @@ export default function Page() {
                 </div>
                 <div className="card-body grid grid-cols-2 gap-4">
                   <div className="col-span-2">
-                    <label className="label">Request Number *</label>
-                    <input className={clsx('input-field', errs.requestNumber && 'error')} placeholder="3UJNKL4QDMK"
+                    <label className="label">Request Number</label>
+                    <input className="input-field" placeholder="3UJNKL4QDMK"
                       value={claim.requestNumber} onChange={e => setField('requestNumber', e.target.value)} />
                   </div>
                   <div>
-                    <label className="label">Activity Type *</label>
-                    <select className={clsx('input-field', errs.activityType && 'error')}
+                    <label className="label">Activity Type</label>
+                    <select className="input-field"
                       value={claim.activityType} onChange={e => setField('activityType', e.target.value)}>
                       <option value="">Select type</option>
                       {ACTIVITY_TYPES.map(a => <option key={a} value={a}>{a}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="label">Activity *</label>
-                    <select className={clsx('input-field', errs.activity && 'error')} disabled={!claim.activityType}
+                    <label className="label">Activity</label>
+                    <select className="input-field" disabled={!claim.activityType}
                       value={claim.activity} onChange={e => setField('activity', e.target.value)}>
                       <option value="">{claim.activityType ? 'Select activity' : 'Pick activity type first'}</option>
                       {activities.map(a => <option key={a} value={a}>{a}</option>)}
@@ -308,8 +325,8 @@ export default function Page() {
                 </div>
                 <div className="card-body grid grid-cols-2 gap-4">
                   <div>
-                    <label className="label">Fund Request Submitted *</label>
-                    <input type="date" className={clsx('input-field', errs.fundRequestSubmittedDate && 'error')}
+                    <label className="label">Fund Request Submitted</label>
+                    <input type="date" className="input-field"
                       value={claim.fundRequestSubmittedDate} onChange={e => setField('fundRequestSubmittedDate', e.target.value)} />
                   </div>
                   <div>
@@ -318,13 +335,13 @@ export default function Page() {
                       value={claim.fundApprovedDate} onChange={e => setField('fundApprovedDate', e.target.value)} />
                   </div>
                   <div>
-                    <label className="label">Activity Start Date *</label>
-                    <input type="date" className={clsx('input-field', errs.activityStartDate && 'error')}
+                    <label className="label">Activity Start Date</label>
+                    <input type="date" className="input-field"
                       value={claim.activityStartDate} onChange={e => setField('activityStartDate', e.target.value)} />
                   </div>
                   <div>
-                    <label className="label">Activity End Date *</label>
-                    <input type="date" className={clsx('input-field', errs.activityEndDate && 'error')}
+                    <label className="label">Activity End Date</label>
+                    <input type="date" className="input-field"
                       value={claim.activityEndDate} onChange={e => setField('activityEndDate', e.target.value)} />
                   </div>
                 </div>
@@ -397,16 +414,21 @@ export default function Page() {
             <div className="lg:col-span-3">
               <div className="lg:sticky lg:top-[80px]">
                 {busy ? <LoadingPanel steps={STEPS} current={step} />
-                  : result ? <ResultsPanel result={result} stats={stats!} tab={tab} setTab={setTab} />
+                  : result ? <ResultsPanel result={result} stats={stats!} tab={tab} setTab={setTab} onViewSummary={() => setShowSummary(true)} />
                   : <EmptyPanel />}
               </div>
             </div>
           </div>
         </main>
 
-        <footer className="max-w-[1600px] mx-auto px-6 py-6 text-center text-xs text-slate-500">
-          Powered by Claude AI — Results are analytical recommendations and require human review for final approval.
+        <footer className="max-w-[1600px] mx-auto px-6 py-6 text-center text-xs text-slate-500 space-y-1">
+          <p>Powered by Claude AI · A project by <span className="font-semibold text-slate-700">Govind Amilkanthwar</span></p>
+          <p>Results are analytical recommendations and require human review for final approval.</p>
         </footer>
+
+        {showSummary && result && (
+          <SummaryModal claim={claim} result={result} onClose={() => setShowSummary(false)} />
+        )}
       </div>
     </>
   );
@@ -417,21 +439,54 @@ export default function Page() {
 function EmptyPanel() {
   return (
     <div className="card animate-fade-in">
-      <div className="card-body py-16 text-center">
-        <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-brand-50 to-brand-100 flex items-center justify-center">
-          <FileCheck className="w-10 h-10 text-brand-600" />
+      <div className="card-body py-10">
+        <div className="text-center mb-8">
+          <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-brand-50 to-brand-100 flex items-center justify-center">
+            <FileCheck className="w-10 h-10 text-brand-600" />
+          </div>
+          <h3 className="text-xl font-semibold text-slate-900 mb-2">How the Claim Validation Portal Works</h3>
+          <p className="text-sm text-slate-600 max-w-lg mx-auto">
+            An AI-assisted tool for validating partner marketing claims (MDF). Enter your claim details,
+            upload the supporting evidence, and receive a structured validation report in under a minute.
+          </p>
         </div>
-        <h3 className="text-lg font-semibold text-slate-900 mb-2">Ready for Validation</h3>
-        <p className="text-sm text-slate-600 max-w-md mx-auto mb-6">
-          Fill in the claim details, upload supporting documents, and submit. Our AI will analyze every document against program guidelines and provide a comprehensive validation report.
-        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div className="p-4 rounded-lg border border-slate-200 bg-slate-50">
+            <h4 className="text-sm font-semibold text-slate-800 mb-2 flex items-center gap-2">
+              <Upload className="w-4 h-4 text-brand-600" /> What to upload
+            </h4>
+            <ul className="text-xs text-slate-700 space-y-1.5">
+              <li>• Invoices and receipts</li>
+              <li>• Event photos or screenshots</li>
+              <li>• Attendance lists or registrations</li>
+              <li>• Signed completion / delivery notes</li>
+              <li>• Contracts, quotes, purchase orders</li>
+            </ul>
+          </div>
+          <div className="p-4 rounded-lg border border-slate-200 bg-slate-50">
+            <h4 className="text-sm font-semibold text-slate-800 mb-2 flex items-center gap-2">
+              <FileCheck className="w-4 h-4 text-brand-600" /> What gets checked
+            </h4>
+            <ul className="text-xs text-slate-700 space-y-1.5">
+              <li>• Monetary amounts reconciled vs. claim</li>
+              <li>• Dates align with activity window</li>
+              <li>• Partner name and ID consistency</li>
+              <li>• Proof of performance present</li>
+              <li>• Program guideline compliance</li>
+            </ul>
+          </div>
+        </div>
+
+        <p className="text-xs text-slate-500 text-center mb-4">Only <span className="font-semibold text-slate-700">Partner ID</span> and <span className="font-semibold text-slate-700">Partner Name</span> are mandatory — all other fields are optional to help improve validation accuracy.</p>
+
         <div className="grid grid-cols-3 gap-3 max-w-md mx-auto">
           {[
             { Icon: FileSearch, label: 'Evidence Extraction' },
             { Icon: BarChart3, label: 'Field Validation' },
             { Icon: ClipboardList, label: 'Guideline Checks' },
           ].map(({ Icon, label }) => (
-            <div key={label} className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+            <div key={label} className="p-3 rounded-lg bg-white border border-slate-200 text-center">
               <Icon className="w-5 h-5 text-brand-600 mx-auto mb-1" />
               <p className="text-xs font-medium text-slate-700">{label}</p>
             </div>
@@ -474,11 +529,12 @@ function LoadingPanel({ steps, current }: { steps: string[]; current: number }) 
   );
 }
 
-function ResultsPanel({ result, stats, tab, setTab }: {
+function ResultsPanel({ result, stats, tab, setTab, onViewSummary }: {
   result: ValidationResult;
   stats: { pass: number; fail: number; warn: number; total: number; criticalIssues: number };
   tab: 'overview' | 'fields' | 'documents' | 'guidelines' | 'issues';
   setTab: (t: 'overview' | 'fields' | 'documents' | 'guidelines' | 'issues') => void;
+  onViewSummary: () => void;
 }) {
   const d = DECISION_STYLES[result.decision];
   const { Icon } = d;
@@ -498,6 +554,9 @@ function ResultsPanel({ result, stats, tab, setTab }: {
             </div>
             <p className={clsx('text-sm leading-relaxed', d.text)}>{result.summary}</p>
           </div>
+          <button onClick={onViewSummary} className="btn-secondary whitespace-nowrap">
+            <FileDown className="w-4 h-4" /> View Summary
+          </button>
         </div>
         {/* Confidence bar */}
         <div className="mt-4 bg-white/70 rounded-full h-2 overflow-hidden">
@@ -705,6 +764,146 @@ function GuidelinesTab({ result }: { result: ValidationResult }) {
         );
       })}
     </ul>
+  );
+}
+
+function SummaryModal({ claim, result, onClose }: { claim: ClaimFormData; result: ValidationResult; onClose: () => void }) {
+  const d = DECISION_STYLES[result.decision];
+  const handlePrint = () => window.print();
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-start justify-center overflow-y-auto p-4 print:bg-white print:p-0 print:block">
+      <div className="w-full max-w-4xl bg-white rounded-xl shadow-2xl my-8 print:shadow-none print:my-0 print:rounded-none print:max-w-none">
+        {/* Toolbar (hidden when printing) */}
+        <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between rounded-t-xl print:hidden">
+          <h2 className="text-base font-bold text-slate-900">Claim Validation Summary</h2>
+          <div className="flex items-center gap-2">
+            <button onClick={handlePrint} className="btn-secondary"><Printer className="w-4 h-4" /> Print / Save PDF</button>
+            <button onClick={onClose} className="btn-secondary"><X className="w-4 h-4" /> Close</button>
+          </div>
+        </div>
+
+        {/* Printable content */}
+        <div className="p-8 space-y-6">
+          {/* Header */}
+          <div className="text-center border-b border-slate-200 pb-4">
+            <h1 className="text-2xl font-bold text-slate-900">Claim Validation Summary</h1>
+            <p className="text-xs text-slate-500 mt-1">
+              Generated {new Date(result.auditTimestamp).toLocaleString()} · Claim Validation Portal
+            </p>
+          </div>
+
+          {/* Decision */}
+          <div className={clsx('rounded-lg border p-5', d.bg, 'border-slate-200')}>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className={clsx('text-xl font-bold', d.text)}>Decision: {d.label}</h3>
+              <span className="text-sm font-semibold text-slate-700">Confidence: {result.confidence}%</span>
+            </div>
+            <p className={clsx('text-sm leading-relaxed', d.text)}>{result.summary}</p>
+          </div>
+
+          {/* Claim details */}
+          <section>
+            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-2">Claim Details</h3>
+            <div className="border border-slate-200 rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <tbody className="divide-y divide-slate-100">
+                  {(Object.entries(FIELD_LABELS) as [keyof ClaimFormData, string][]).map(([key, label]) => (
+                    <tr key={key}>
+                      <td className="py-2 px-3 bg-slate-50 font-medium text-slate-700 w-1/3">{label}</td>
+                      <td className="py-2 px-3 text-slate-800">{claim[key] || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          {/* Field validations */}
+          <section>
+            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-2">Field Validation</h3>
+            <div className="border border-slate-200 rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="text-left py-2 px-3 font-semibold text-xs text-slate-600">Field</th>
+                    <th className="text-left py-2 px-3 font-semibold text-xs text-slate-600">Submitted</th>
+                    <th className="text-left py-2 px-3 font-semibold text-xs text-slate-600">Extracted</th>
+                    <th className="text-left py-2 px-3 font-semibold text-xs text-slate-600">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {result.fieldValidations.map((f, i) => {
+                    const s = STATUS_STYLES[f.status] ?? STATUS_STYLES.warning;
+                    return (
+                      <tr key={i}>
+                        <td className="py-2 px-3 font-medium text-slate-800">{f.label}</td>
+                        <td className="py-2 px-3 text-slate-700">{f.submittedValue || '—'}</td>
+                        <td className="py-2 px-3 text-slate-700">{f.extractedValue || '—'}</td>
+                        <td className="py-2 px-3"><span className={clsx('badge border', s.cls)}>{s.label}</span></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          {/* Guidelines */}
+          <section>
+            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-2">Guideline Compliance</h3>
+            <ul className="border border-slate-200 rounded-lg divide-y divide-slate-100">
+              {result.guidelineChecks.map((g, i) => {
+                const s = STATUS_STYLES[g.status] ?? STATUS_STYLES.warning;
+                return (
+                  <li key={i} className="py-2 px-3 flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-slate-800">{g.requirement}</p>
+                      <p className="text-xs text-slate-600 mt-0.5">{g.detail}</p>
+                    </div>
+                    <span className={clsx('badge border flex-shrink-0', s.cls)}>{s.label}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+
+          {/* Issues */}
+          {result.issues.length > 0 && (
+            <section>
+              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-2">Issues Identified</h3>
+              <div className="space-y-2">
+                {result.issues.map((iss, i) => (
+                  <div key={i} className="border border-slate-200 rounded-lg p-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={clsx('badge border', SEVERITY_STYLES[iss.severity])}>{iss.severity.toUpperCase()}</span>
+                      <p className="text-sm font-semibold text-slate-900">{iss.category}</p>
+                    </div>
+                    <p className="text-sm text-slate-700 mb-1">{iss.description}</p>
+                    <p className="text-xs text-slate-600"><span className="font-semibold">Recommendation:</span> {iss.recommendation}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Recommendations */}
+          {result.recommendations.length > 0 && (
+            <section>
+              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-2">Recommendations</h3>
+              <ul className="space-y-1 pl-5 list-disc text-sm text-slate-700">
+                {result.recommendations.map((r, i) => <li key={i}>{r}</li>)}
+              </ul>
+            </section>
+          )}
+
+          {/* Footer */}
+          <div className="border-t border-slate-200 pt-4 text-center text-xs text-slate-500">
+            Generated by Claim Validation Portal · A project by Govind Amilkanthwar
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

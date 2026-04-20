@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import clsx from 'clsx';
@@ -867,143 +868,299 @@ function GuidelinesTab({ result }: { result: ValidationResult }) {
   );
 }
 
+const PRINT_STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  pass:    { bg: '#f0fdf4', text: '#166534', border: '#bbf7d0' },
+  warning: { bg: '#fffbeb', text: '#92400e', border: '#fde68a' },
+  fail:    { bg: '#fef2f2', text: '#991b1b', border: '#fecaca' },
+  info:    { bg: '#f0f9ff', text: '#1e40af', border: '#bfdbfe' },
+};
+const PRINT_SEV_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  critical: { bg: '#fef2f2', text: '#991b1b', border: '#fecaca' },
+  high:     { bg: '#fff7ed', text: '#9a3412', border: '#fed7aa' },
+  medium:   { bg: '#fffbeb', text: '#92400e', border: '#fde68a' },
+  low:      { bg: '#f0fdf4', text: '#166534', border: '#bbf7d0' },
+  info:     { bg: '#f0f9ff', text: '#1e40af', border: '#bfdbfe' },
+};
+const PRINT_DECISION_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  approved:            { bg: '#f0fdf4', text: '#166534', border: '#bbf7d0' },
+  rejected:            { bg: '#fef2f2', text: '#991b1b', border: '#fecaca' },
+  'approved-with-conditions': { bg: '#fffbeb', text: '#92400e', border: '#fde68a' },
+  'needs-review':      { bg: '#eff6ff', text: '#1e40af', border: '#bfdbfe' },
+};
+
+function PrintBadge({ label, colors }: { label: string; colors: { bg: string; text: string; border: string } }) {
+  return (
+    <span style={{
+      display: 'inline-block', padding: '2px 8px', borderRadius: '9999px',
+      fontSize: '10px', fontWeight: 700,
+      background: colors.bg, color: colors.text, border: `1px solid ${colors.border}`,
+    }}>{label}</span>
+  );
+}
+
 function SummaryModal({ claim, result, onClose }: { claim: ClaimFormData; result: ValidationResult; onClose: () => void }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); return () => setMounted(false); }, []);
+
   const d = DECISION_STYLES[result.decision];
   const handlePrint = () => window.print();
+  const dc = PRINT_DECISION_COLORS[result.decision] ?? PRINT_DECISION_COLORS['needs-review'];
+
+  const printReport = (
+    <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '12px', color: '#1e293b', lineHeight: 1.5, padding: '0' }}>
+      {/* Header */}
+      <div style={{ textAlign: 'center', borderBottom: '2px solid #e2e8f0', paddingBottom: '16px', marginBottom: '20px' }}>
+        <div style={{ fontSize: '22px', fontWeight: 800, color: '#1e293b', marginBottom: '4px' }}>Claim Validation Summary</div>
+        <div style={{ fontSize: '11px', color: '#64748b' }}>
+          Generated {new Date(result.auditTimestamp).toLocaleString()} · Claim Validation Portal · A project by Govind Amilkanthwar
+        </div>
+      </div>
+
+      {/* Decision */}
+      <div style={{ padding: '14px 16px', borderRadius: '8px', marginBottom: '20px', background: dc.bg, border: `1px solid ${dc.border}`, breakInside: 'avoid' as const }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+          <div style={{ fontSize: '16px', fontWeight: 700, color: dc.text }}>Decision: {d.label}</div>
+          <div style={{ fontSize: '12px', fontWeight: 600, color: '#475569' }}>Confidence: {result.confidence}%</div>
+        </div>
+        <div style={{ fontSize: '12px', color: dc.text }}>{result.summary}</div>
+      </div>
+
+      {/* Claim Details */}
+      <div style={{ marginBottom: '20px' }}>
+        <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.05em', color: '#475569', marginBottom: '8px' }}>Claim Details</div>
+        <table style={{ width: '100%', borderCollapse: 'collapse' as const, border: '1px solid #e2e8f0' }}>
+          <tbody>
+            {(Object.entries(FIELD_LABELS) as [keyof ClaimFormData, string][]).map(([key, label]) => (
+              <tr key={key} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                <td style={{ padding: '6px 10px', background: '#f8fafc', fontWeight: 600, color: '#475569', width: '35%', fontSize: '11px' }}>{label}</td>
+                <td style={{ padding: '6px 10px', color: '#1e293b', fontSize: '11px' }}>{claim[key] || '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Field Validation */}
+      <div style={{ marginBottom: '20px' }}>
+        <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.05em', color: '#475569', marginBottom: '8px' }}>Field Validation</div>
+        <table style={{ width: '100%', borderCollapse: 'collapse' as const, border: '1px solid #e2e8f0' }}>
+          <thead style={{ display: 'table-header-group' }}>
+            <tr style={{ background: '#f8fafc' }}>
+              {['Field', 'Submitted', 'Extracted', 'Status'].map(h => (
+                <th key={h} style={{ padding: '6px 10px', textAlign: 'left' as const, fontSize: '10px', fontWeight: 700, color: '#475569', borderBottom: '1px solid #e2e8f0' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {result.fieldValidations.map((f, i) => {
+              const s = STATUS_STYLES[f.status] ?? STATUS_STYLES.warning;
+              const sc = PRINT_STATUS_COLORS[f.status] ?? PRINT_STATUS_COLORS.warning;
+              return (
+                <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <td style={{ padding: '6px 10px', fontWeight: 600, color: '#1e293b', fontSize: '11px' }}>{f.label}</td>
+                  <td style={{ padding: '6px 10px', color: '#475569', fontSize: '11px' }}>{f.submittedValue || '—'}</td>
+                  <td style={{ padding: '6px 10px', color: '#475569', fontSize: '11px' }}>{f.extractedValue || '—'}</td>
+                  <td style={{ padding: '6px 10px', fontSize: '11px' }}><PrintBadge label={s.label} colors={sc} /></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Guideline Compliance */}
+      <div style={{ marginBottom: '20px' }}>
+        <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.05em', color: '#475569', marginBottom: '8px' }}>Guideline Compliance</div>
+        <div style={{ border: '1px solid #e2e8f0', borderRadius: '6px' }}>
+          {result.guidelineChecks.map((g, i) => {
+            const s = STATUS_STYLES[g.status] ?? STATUS_STYLES.warning;
+            const sc = PRINT_STATUS_COLORS[g.status] ?? PRINT_STATUS_COLORS.warning;
+            return (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '8px 10px', borderBottom: i < result.guidelineChecks.length - 1 ? '1px solid #f1f5f9' : 'none', breakInside: 'avoid' as const }}>
+                <div style={{ flex: 1, marginRight: '12px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: '#1e293b' }}>{g.requirement}</div>
+                  <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>{g.detail}</div>
+                </div>
+                <PrintBadge label={s.label} colors={sc} />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Issues */}
+      {result.issues.length > 0 && (
+        <div style={{ marginBottom: '20px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.05em', color: '#475569', marginBottom: '8px' }}>Issues Identified</div>
+          {result.issues.map((iss, i) => {
+            const sc = PRINT_SEV_COLORS[iss.severity] ?? PRINT_SEV_COLORS.medium;
+            return (
+              <div key={i} style={{ border: '1px solid #e2e8f0', borderRadius: '6px', padding: '10px', marginBottom: '8px', breakInside: 'avoid' as const }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                  <PrintBadge label={iss.severity.toUpperCase()} colors={sc} />
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#1e293b' }}>{iss.category}</span>
+                </div>
+                <div style={{ fontSize: '11px', color: '#475569', marginBottom: '4px' }}>{iss.description}</div>
+                <div style={{ fontSize: '11px', color: '#64748b' }}><span style={{ fontWeight: 600 }}>Recommendation:</span> {iss.recommendation}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Recommendations */}
+      {result.recommendations.length > 0 && (
+        <div style={{ marginBottom: '20px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.05em', color: '#475569', marginBottom: '8px' }}>Recommendations</div>
+          <ul style={{ margin: 0, paddingLeft: '20px' }}>
+            {result.recommendations.map((r, i) => (
+              <li key={i} style={{ fontSize: '11px', color: '#475569', marginBottom: '4px' }}>{r}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Footer */}
+      <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px', textAlign: 'center' as const, fontSize: '10px', color: '#94a3b8' }}>
+        Generated by Claim Validation Portal · A project by Govind Amilkanthwar
+      </div>
+    </div>
+  );
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-start justify-center overflow-y-auto p-4 print:bg-white print:p-0 print:block">
-      <div className="w-full max-w-4xl bg-white rounded-xl shadow-2xl my-8 print:shadow-none print:my-0 print:rounded-none print:max-w-none">
-        {/* Toolbar (hidden when printing) */}
-        <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between rounded-t-xl print:hidden">
-          <h2 className="text-base font-bold text-slate-900">Claim Validation Summary</h2>
-          <div className="flex items-center gap-2">
-            <button onClick={handlePrint} className="btn-secondary"><Printer className="w-4 h-4" /> Print / Save PDF</button>
-            <button onClick={onClose} className="btn-secondary"><X className="w-4 h-4" /> Close</button>
-          </div>
-        </div>
-
-        {/* Printable content */}
-        <div className="p-8 space-y-6">
-          {/* Header */}
-          <div className="text-center border-b border-slate-200 pb-4">
-            <h1 className="text-2xl font-bold text-slate-900">Claim Validation Summary</h1>
-            <p className="text-xs text-slate-500 mt-1">
-              Generated {new Date(result.auditTimestamp).toLocaleString()} · Claim Validation Portal
-            </p>
+    <>
+      {/* Screen modal — hidden during print */}
+      <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-start justify-center overflow-y-auto p-4 print:hidden">
+        <div className="w-full max-w-4xl bg-white rounded-xl shadow-2xl my-8">
+          {/* Toolbar */}
+          <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between rounded-t-xl">
+            <h2 className="text-base font-bold text-slate-900">Claim Validation Summary</h2>
+            <div className="flex items-center gap-2">
+              <button onClick={handlePrint} className="btn-secondary"><Printer className="w-4 h-4" /> Print / Save PDF</button>
+              <button onClick={onClose} className="btn-secondary"><X className="w-4 h-4" /> Close</button>
+            </div>
           </div>
 
-          {/* Decision */}
-          <div className={clsx('rounded-lg border p-5', d.bg, 'border-slate-200')}>
-            <div className="flex items-center justify-between mb-2">
-              <h3 className={clsx('text-xl font-bold', d.text)}>Decision: {d.label}</h3>
-              <span className="text-sm font-semibold text-slate-700">Confidence: {result.confidence}%</span>
+          {/* Screen content */}
+          <div className="p-8 space-y-6">
+            <div className="text-center border-b border-slate-200 pb-4">
+              <h1 className="text-2xl font-bold text-slate-900">Claim Validation Summary</h1>
+              <p className="text-xs text-slate-500 mt-1">
+                Generated {new Date(result.auditTimestamp).toLocaleString()} · Claim Validation Portal
+              </p>
             </div>
-            <p className={clsx('text-sm leading-relaxed', d.text)}>{result.summary}</p>
-          </div>
 
-          {/* Claim details */}
-          <section>
-            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-2">Claim Details</h3>
-            <div className="border border-slate-200 rounded-lg overflow-hidden">
-              <table className="w-full text-sm">
-                <tbody className="divide-y divide-slate-100">
-                  {(Object.entries(FIELD_LABELS) as [keyof ClaimFormData, string][]).map(([key, label]) => (
-                    <tr key={key}>
-                      <td className="py-2 px-3 bg-slate-50 font-medium text-slate-700 w-1/3">{label}</td>
-                      <td className="py-2 px-3 text-slate-800">{claim[key] || '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className={clsx('rounded-lg border p-5', d.bg, 'border-slate-200')}>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className={clsx('text-xl font-bold', d.text)}>Decision: {d.label}</h3>
+                <span className="text-sm font-semibold text-slate-700">Confidence: {result.confidence}%</span>
+              </div>
+              <p className={clsx('text-sm leading-relaxed', d.text)}>{result.summary}</p>
             </div>
-          </section>
 
-          {/* Field validations */}
-          <section>
-            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-2">Field Validation</h3>
-            <div className="border border-slate-200 rounded-lg overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="text-left py-2 px-3 font-semibold text-xs text-slate-600">Field</th>
-                    <th className="text-left py-2 px-3 font-semibold text-xs text-slate-600">Submitted</th>
-                    <th className="text-left py-2 px-3 font-semibold text-xs text-slate-600">Extracted</th>
-                    <th className="text-left py-2 px-3 font-semibold text-xs text-slate-600">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {result.fieldValidations.map((f, i) => {
-                    const s = STATUS_STYLES[f.status] ?? STATUS_STYLES.warning;
-                    return (
-                      <tr key={i}>
-                        <td className="py-2 px-3 font-medium text-slate-800">{f.label}</td>
-                        <td className="py-2 px-3 text-slate-700">{f.submittedValue || '—'}</td>
-                        <td className="py-2 px-3 text-slate-700">{f.extractedValue || '—'}</td>
-                        <td className="py-2 px-3"><span className={clsx('badge border', s.cls)}>{s.label}</span></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          {/* Guidelines */}
-          <section>
-            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-2">Guideline Compliance</h3>
-            <ul className="border border-slate-200 rounded-lg divide-y divide-slate-100">
-              {result.guidelineChecks.map((g, i) => {
-                const s = STATUS_STYLES[g.status] ?? STATUS_STYLES.warning;
-                return (
-                  <li key={i} className="py-2 px-3 flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-slate-800">{g.requirement}</p>
-                      <p className="text-xs text-slate-600 mt-0.5">{g.detail}</p>
-                    </div>
-                    <span className={clsx('badge border flex-shrink-0', s.cls)}>{s.label}</span>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-
-          {/* Issues */}
-          {result.issues.length > 0 && (
             <section>
-              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-2">Issues Identified</h3>
-              <div className="space-y-2">
-                {result.issues.map((iss, i) => (
-                  <div key={i} className="border border-slate-200 rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={clsx('badge border', SEVERITY_STYLES[iss.severity])}>{iss.severity.toUpperCase()}</span>
-                      <p className="text-sm font-semibold text-slate-900">{iss.category}</p>
-                    </div>
-                    <p className="text-sm text-slate-700 mb-1">{iss.description}</p>
-                    <p className="text-xs text-slate-600"><span className="font-semibold">Recommendation:</span> {iss.recommendation}</p>
-                  </div>
-                ))}
+              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-2">Claim Details</h3>
+              <div className="border border-slate-200 rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <tbody className="divide-y divide-slate-100">
+                    {(Object.entries(FIELD_LABELS) as [keyof ClaimFormData, string][]).map(([key, label]) => (
+                      <tr key={key}>
+                        <td className="py-2 px-3 bg-slate-50 font-medium text-slate-700 w-1/3">{label}</td>
+                        <td className="py-2 px-3 text-slate-800">{claim[key] || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </section>
-          )}
 
-          {/* Recommendations */}
-          {result.recommendations.length > 0 && (
             <section>
-              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-2">Recommendations</h3>
-              <ul className="space-y-1 pl-5 list-disc text-sm text-slate-700">
-                {result.recommendations.map((r, i) => <li key={i}>{r}</li>)}
+              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-2">Field Validation</h3>
+              <div className="border border-slate-200 rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="text-left py-2 px-3 font-semibold text-xs text-slate-600">Field</th>
+                      <th className="text-left py-2 px-3 font-semibold text-xs text-slate-600">Submitted</th>
+                      <th className="text-left py-2 px-3 font-semibold text-xs text-slate-600">Extracted</th>
+                      <th className="text-left py-2 px-3 font-semibold text-xs text-slate-600">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {result.fieldValidations.map((f, i) => {
+                      const s = STATUS_STYLES[f.status] ?? STATUS_STYLES.warning;
+                      return (
+                        <tr key={i}>
+                          <td className="py-2 px-3 font-medium text-slate-800">{f.label}</td>
+                          <td className="py-2 px-3 text-slate-700">{f.submittedValue || '—'}</td>
+                          <td className="py-2 px-3 text-slate-700">{f.extractedValue || '—'}</td>
+                          <td className="py-2 px-3"><span className={clsx('badge border', s.cls)}>{s.label}</span></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section>
+              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-2">Guideline Compliance</h3>
+              <ul className="border border-slate-200 rounded-lg divide-y divide-slate-100">
+                {result.guidelineChecks.map((g, i) => {
+                  const s = STATUS_STYLES[g.status] ?? STATUS_STYLES.warning;
+                  return (
+                    <li key={i} className="py-2 px-3 flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-slate-800">{g.requirement}</p>
+                        <p className="text-xs text-slate-600 mt-0.5">{g.detail}</p>
+                      </div>
+                      <span className={clsx('badge border flex-shrink-0', s.cls)}>{s.label}</span>
+                    </li>
+                  );
+                })}
               </ul>
             </section>
-          )}
 
-          {/* Footer */}
-          <div className="border-t border-slate-200 pt-4 text-center text-xs text-slate-500">
-            Generated by Claim Validation Portal · A project by Govind Amilkanthwar
+            {result.issues.length > 0 && (
+              <section>
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-2">Issues Identified</h3>
+                <div className="space-y-2">
+                  {result.issues.map((iss, i) => (
+                    <div key={i} className="border border-slate-200 rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={clsx('badge border', SEVERITY_STYLES[iss.severity])}>{iss.severity.toUpperCase()}</span>
+                        <p className="text-sm font-semibold text-slate-900">{iss.category}</p>
+                      </div>
+                      <p className="text-sm text-slate-700 mb-1">{iss.description}</p>
+                      <p className="text-xs text-slate-600"><span className="font-semibold">Recommendation:</span> {iss.recommendation}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {result.recommendations.length > 0 && (
+              <section>
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-2">Recommendations</h3>
+                <ul className="space-y-1 pl-5 list-disc text-sm text-slate-700">
+                  {result.recommendations.map((r, i) => <li key={i}>{r}</li>)}
+                </ul>
+              </section>
+            )}
+
+            <div className="border-t border-slate-200 pt-4 text-center text-xs text-slate-500">
+              Generated by Claim Validation Portal · A project by Govind Amilkanthwar
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* Print-only portal — rendered outside #__next so it's the only thing visible when printing */}
+      {mounted && createPortal(
+        <div id="cvp-print-root">{printReport}</div>,
+        document.body
+      )}
+    </>
   );
 }
 

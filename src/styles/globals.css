@@ -83,3 +83,13 @@
   to { width: var(--progress-width); }
 }
 .progress-bar { animation: progressFill 1s ease-out forwards; }
+
+/* Print-only report container — hidden on screen, shown during print */
+#cvp-print-root { display: none; }
+
+@media print {
+  @page { size: A4 portrait; margin: 15mm 16mm 20mm 16mm; }
+  * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  #__next { display: none !important; }
+  #cvp-print-root { display: block !important; }
+}

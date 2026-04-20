@@ -7,7 +7,15 @@ function getClient() {
   if (!_client) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !key) throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY');
+    if (!url || !key) {
+      const msg =
+        'Missing Supabase env vars. ' +
+        'Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY ' +
+        'in Vercel → Project Settings → Environment Variables (all environments).';
+      console.error('[CVP]', msg);
+      throw new Error(msg);
+    }
+    console.log('[CVP] Supabase client initializing for', new URL(url).hostname);
     _client = createClient(url, key);
   }
   return _client;

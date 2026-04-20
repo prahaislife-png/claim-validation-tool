@@ -53,7 +53,11 @@ export default function SetupPage() {
   };
 
   const copySQL = async () => {
-    await navigator.clipboard.writeText(manualSQL);
+    try {
+      await navigator.clipboard.writeText(manualSQL);
+    } catch {
+      // clipboard API unavailable (non-HTTPS or older browser) — user can select manually
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

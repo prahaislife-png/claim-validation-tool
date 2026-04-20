@@ -46,18 +46,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      await resolveProfile(session);
-      setLoading(false);
-    });
+    let isMounted = true;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setUser(session?.user ?? null);
-      await resolveProfile(session);
-    });
+    // getSession — wrapped so a synchronous throw (e.g. missing env vars) is caught
+    // and does not propagate as a fatal React error, causing the white screen.
+    const initSession = async () => {
+      try {
+        console.log('[CVP] Auth: initializing session');
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!isMounted) return;
+        setUser(session?.user ?? null);
+        await resolveProfile(session);
+        console.log('[CVP] Auth: session ready, user =', session?.user?.email ?? 'none');
+      } catch (err) {
+        console.error('[CVP] Auth: getSession failed —', err instanceof Error ? err.message : err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
 
-    return () => subscription.unsubscribe();
+    initSession();
+
+    // onAuthStateChange — also wrapped; if the proxy throws (missing env vars) we
+    // catch it and skip the listener rather than crashing the whole app.
+    let subscription: { unsubscribe: () => void } | null = null;
+    try {
+      const { data } = supabase.auth.onAuthStateChange(async (_event, session) => {
+        if (!isMounted) return;
+        setUser(session?.user ?? null);
+        await resolveProfile(session);
+      });
+      subscription = data.subscription;
+    } catch (err) {
+      console.error('[CVP] Auth: onAuthStateChange failed —', err instanceof Error ? err.message : err);
+    }
+
+    return () => {
+      isMounted = false;
+      subscription?.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {

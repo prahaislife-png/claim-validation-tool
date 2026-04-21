@@ -47,9 +47,9 @@ async function computeAiIntelligenceAnswer(
   const prompt = `You are a senior MDF claims analyst with deep knowledge of the SAP partner ecosystem and the enterprise software industry. You give final advisory opinions that combine structured report findings with your real-world knowledge of the partner company.
 
 === CLAIM REPORT ===
-Partner: ${claimData.partnerName} (ID: ${claimData.partnerId})
+Partner: ${claimData.partnerName}
 Activity: ${claimData.activity} | Category: ${claimData.category}
-Claimed amount: €${claimData.fundingApproved}
+Funds Requested: €${claimData.budgetAllocationAmount} | Funding Approved: €${claimData.fundingApproved}
 Report decision: ${result.decision} | Confidence: ${result.confidence}%
 Report summary: ${result.summary}
 
@@ -111,8 +111,20 @@ function loadGuidelines(): string {
   const parts: string[] = [];
   try {
     for (const f of fs.readdirSync(dir)) {
+      const fullPath = path.join(dir, f);
       if (f.endsWith('.txt')) {
-        parts.push(`=== ${f} ===\n${fs.readFileSync(path.join(dir, f), 'utf-8')}`);
+        parts.push(`=== ${f} ===\n${fs.readFileSync(fullPath, 'utf-8')}`);
+      } else if (f.endsWith('.xlsx') || f.endsWith('.xls')) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const XLSX = require('xlsx') as typeof import('xlsx');
+          const wb = XLSX.readFile(fullPath);
+          const sheets = wb.SheetNames.map(n => {
+            const rows = XLSX.utils.sheet_to_csv(wb.Sheets[n]).split('\n').slice(0, 200).join('\n');
+            return `[Sheet: ${n}]\n${rows}`;
+          }).join('\n\n');
+          parts.push(`=== ${f} ===\n${sheets}`);
+        } catch { /* skip unreadable xlsx */ }
       }
     }
   } catch { /* no reference_docs dir */ }
@@ -167,10 +179,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const now = new Date().toISOString();
 
   const claimBlock = `=== CLAIM SUBMISSION ===
-Partner ID: ${claimData.partnerId}
 Partner Name: ${claimData.partnerName}
-Budget Period: ${claimData.budgetPeriodFrom} to ${claimData.budgetPeriodTo}
-Budget Allocation: €${claimData.budgetAllocationAmount}
+Partner ID: [Extract from uploaded documents — not submitted by user]
+Funds Requested: €${claimData.budgetAllocationAmount}
+Funding Approved: €${claimData.fundingApproved}
 Category: ${claimData.category}
 Request Number: ${claimData.requestNumber}
 Activity Type: ${claimData.activityType}
@@ -179,7 +191,6 @@ Fund Request Submitted: ${claimData.fundRequestSubmittedDate}
 Fund Approved Date: ${claimData.fundApprovedDate || 'Not provided'}
 Activity Start Date: ${claimData.activityStartDate}
 Activity End Date: ${claimData.activityEndDate}
-Funding Approved: €${claimData.fundingApproved}
 === END CLAIM ===`;
 
   const instructionBlock = `
@@ -196,9 +207,9 @@ Return ONLY valid JSON — no markdown fences, no extra text outside the JSON ob
   "confidence": <0-100>,
   "summary": "<2-3 sentence executive summary>",
   "fieldValidations": [
-    {"field":"partnerId","label":"Partner ID","submittedValue":"...","extractedValue":"...","status":"pass|fail|warning|missing|partial","note":"..."},
+    {"field":"partnerId","label":"Partner ID","submittedValue":"(auto-extracted)","extractedValue":"<value found in documents or 'Not found'>","status":"pass|fail|warning|missing|partial","note":"..."},
     {"field":"partnerName","label":"Partner Name","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
-    {"field":"budgetAllocationAmount","label":"Budget Allocation","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
+    {"field":"budgetAllocationAmount","label":"Funds Requested","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
     {"field":"requestNumber","label":"Request Number","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
     {"field":"activityStartDate","label":"Activity Start Date","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
     {"field":"activityEndDate","label":"Activity End Date","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
@@ -211,13 +222,14 @@ Return ONLY valid JSON — no markdown fences, no extra text outside the JSON ob
     {"fileName":"...","type":"Invoice|Receipt|Attendance|Photo|Contract|Quote|Other","summary":"...","keyDataFound":["..."],"issues":["..."],"relevance":"high|medium|low"}
   ],
   "guidelineChecks": [
-    {"requirement":"Invoice with invoice number present","status":"pass|fail|warning|missing|partial","detail":"..."},
+    {"requirement":"Third party invoice confirmation to program guidelines","status":"pass|fail|warning|missing|partial","detail":"..."},
+    {"requirement":"Partner invoices confirmation to program guidelines","status":"...","detail":"..."},
+    {"requirement":"Proof of performance confirmation to program guidelines","status":"...","detail":"..."},
     {"requirement":"Partner identification on documents","status":"...","detail":"..."},
     {"requirement":"Monetary amounts reconciled","status":"...","detail":"..."},
     {"requirement":"Activity dates confirmed in evidence","status":"...","detail":"..."},
-    {"requirement":"Proof of performance provided","status":"...","detail":"..."},
     {"requirement":"Currency consistency throughout","status":"...","detail":"..."},
-    {"requirement":"Funding does not exceed budget allocation","status":"...","detail":"..."},
+    {"requirement":"Funding does not exceed approved amount","status":"...","detail":"..."},
     {"requirement":"All required document types present","status":"...","detail":"..."}
   ],
   "issues": [
@@ -282,7 +294,7 @@ Decision rules:
     auth.adminClient.from('claim_submissions').insert({
       user_id:        auth.user.id,
       email:          auth.profile.email,
-      partner_id:     claimData.partnerId,
+      partner_id:     null,
       partner_name:   claimData.partnerName,
       request_number: claimData.requestNumber,
       claim_data:     claimData,
@@ -296,7 +308,6 @@ Decision rules:
       email:    auth.profile.email,
       action:   'claim_submission',
       metadata: {
-        partner_id:   claimData.partnerId,
         partner_name: claimData.partnerName,
         decision:     result.decision,
         confidence:   result.confidence,

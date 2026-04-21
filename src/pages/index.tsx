@@ -27,14 +27,11 @@ const ACTIVITY_MAP: Record<string, string[]> = {
   Other: ['Other'],
 };
 
-const REQUIRED: (keyof ClaimFormData)[] = ['partnerId', 'partnerName'];
+const REQUIRED: (keyof ClaimFormData)[] = ['partnerName'];
 
 const FIELD_LABELS: Record<keyof ClaimFormData, string> = {
-  partnerId: 'Partner ID',
   partnerName: 'Partner Name',
-  budgetPeriodFrom: 'Budget Period From',
-  budgetPeriodTo: 'Budget Period To',
-  budgetAllocationAmount: 'Budget Allocation (€)',
+  budgetAllocationAmount: 'Funds Requested (€)',
   category: 'Category',
   requestNumber: 'Request Number',
   activityType: 'Activity Type',
@@ -47,9 +44,8 @@ const FIELD_LABELS: Record<keyof ClaimFormData, string> = {
 };
 
 const EMPTY_FORM: ClaimFormData = {
-  partnerId: '', partnerName: '', budgetPeriodFrom: '', budgetPeriodTo: '',
-  budgetAllocationAmount: '', category: '', requestNumber: '', activityType: '',
-  activity: '', fundRequestSubmittedDate: '', fundApprovedDate: '',
+  partnerName: '', budgetAllocationAmount: '', category: '', requestNumber: '',
+  activityType: '', activity: '', fundRequestSubmittedDate: '', fundApprovedDate: '',
   activityStartDate: '', activityEndDate: '', fundingApproved: '',
 };
 
@@ -203,7 +199,7 @@ export default function Page() {
     if (docs.length === 0) { setError('Please upload at least one supporting document'); return; }
     setError(null); setResult(null); setBusy(true); setStep(0); setTab('overview');
 
-    logAction('analysis_run', { partner_id: claim.partnerId, partner_name: claim.partnerName, doc_count: docs.length });
+    logAction('analysis_run', { partner_name: claim.partnerName, doc_count: docs.length });
 
     const ticker = setInterval(() => setStep(s => (s < STEPS.length - 1 ? s + 1 : s)), 2200);
     try {
@@ -303,16 +299,12 @@ export default function Page() {
                   </div>
                   <h2 className="section-title">Partner Details</h2>
                 </div>
-                <div className="card-body grid grid-cols-2 gap-4">
-                  <div className="col-span-1">
-                    <label className="label">Partner ID *</label>
-                    <input className={clsx('input-field', errs.partnerId && 'error')} placeholder="1557861"
-                      value={claim.partnerId} onChange={e => setField('partnerId', e.target.value)} />
-                  </div>
-                  <div className="col-span-1">
+                <div className="card-body space-y-4">
+                  <div>
                     <label className="label">Partner Name *</label>
                     <input className={clsx('input-field', errs.partnerName && 'error')} placeholder="s-peers AG"
                       value={claim.partnerName} onChange={e => setField('partnerName', e.target.value)} />
+                    <p className="text-xs text-slate-500 mt-1">Partner ID will be extracted automatically from uploaded documents.</p>
                   </div>
                 </div>
               </section>
@@ -327,17 +319,7 @@ export default function Page() {
                 </div>
                 <div className="card-body grid grid-cols-2 gap-4">
                   <div>
-                    <label className="label">Budget Period From</label>
-                    <input type="date" className="input-field"
-                      value={claim.budgetPeriodFrom} onChange={e => setField('budgetPeriodFrom', e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="label">Budget Period To</label>
-                    <input type="date" className="input-field"
-                      value={claim.budgetPeriodTo} onChange={e => setField('budgetPeriodTo', e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="label">Budget Allocation (€)</label>
+                    <label className="label">Funds Requested (€)</label>
                     <input type="number" step="0.01" className="input-field"
                       placeholder="1614.77" value={claim.budgetAllocationAmount}
                       onChange={e => setField('budgetAllocationAmount', e.target.value)} />
@@ -501,7 +483,7 @@ export default function Page() {
         </main>
 
         <footer className="max-w-[1600px] mx-auto px-6 py-6 text-center text-xs text-slate-500 space-y-1">
-          <p>Powered by Claude AI · A project by <span className="font-semibold text-slate-700">Govind Amilkanthwar</span></p>
+          <p>A project by <span className="font-semibold text-slate-700">Govind Amilkanthwar</span></p>
           <p>Results are analytical recommendations and require human review for final approval.</p>
         </footer>
 
@@ -534,7 +516,7 @@ function EmptyPanel() {
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-white/15 border border-white/20">
-                <Sparkles className="w-3 h-3" /> Claude AI
+                <Sparkles className="w-3 h-3" /> AI-powered analysis
               </span>
               <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-white/15 border border-white/20">
                 <FileCheck className="w-3 h-3" /> Guideline-aware

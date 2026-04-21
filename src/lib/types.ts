@@ -1,8 +1,5 @@
 export interface ClaimFormData {
-  partnerId: string;
   partnerName: string;
-  budgetPeriodFrom: string;
-  budgetPeriodTo: string;
   budgetAllocationAmount: string;
   category: string;
   requestNumber: string;

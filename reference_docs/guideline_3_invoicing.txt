@@ -1,0 +1,30 @@
+=== INVOICING GUIDELINES — PARTNER MDF CLAIMS ===
+
+THIRD PARTY INVOICE REQUIREMENTS (Confirmation to Program Guidelines):
+- Third party invoices must be original, addressed to the partner organization making the claim.
+- Each invoice must include: invoice number, invoice date, supplier/vendor name and address, line-item description of services, net amount, applicable tax/VAT, and gross total.
+- Third party invoices must relate directly to the claimed activity category (e.g., event venue, catering, AV equipment, printing, digital advertising spend).
+- Invoices must be dated within the activity period or within 30 days after the activity end date.
+- Supplier must be a genuine third party — invoices from affiliated entities or self-invoicing are not permitted without prior approval.
+- Currency on invoices must match the claimed reimbursement currency, or an FX conversion rate must be documented and attached.
+
+PARTNER INVOICE REQUIREMENTS (Confirmation to Program Guidelines):
+- Partner-issued invoices or internal cost summaries must reference the specific MDF request number.
+- The partner name on the invoice must exactly match the registered partner name on the claim submission.
+- Partner invoices must not duplicate amounts already covered by third party invoices in the same claim.
+- If claiming internal labor/staff costs, itemized time sheets or equivalent signed records are required.
+- Invoice payment must be evidenced (bank statement excerpt, payment confirmation) for claims above the pre-set threshold.
+
+PROOF OF PERFORMANCE REQUIREMENTS (Confirmation to Program Guidelines):
+- Proof of performance must directly evidence the activity described in the claim.
+- Accepted proof types: event attendance lists (signed), event photos with date metadata, screenshots of live digital campaigns with date/impression data, training completion certificates, signed delivery notes, post-event reports.
+- Social media or digital proof must show the partner brand/co-branding and campaign dates.
+- Proof of performance must be submitted for every activity line in the claim — partial proof results in partial approval.
+- Event photos must be unedited originals where possible; heavily filtered or stock images are not accepted.
+
+GENERAL INVOICING RULES:
+- All monetary amounts must be reconciled: submitted claim amount must match or be supported by the total of invoiced amounts.
+- Duplicate invoice numbers across submissions will be flagged for manual review.
+- Invoices with signs of alteration (inconsistent fonts, metadata anomalies, corrected amounts without annotation) must be escalated to the compliance team.
+- All documents must be legible; blurred, incomplete, or password-protected files will be returned.
+- MDF claims must not be submitted for activities that are exclusively product sales, discounts, or rebates.

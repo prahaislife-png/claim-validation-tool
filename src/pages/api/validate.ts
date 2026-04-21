@@ -143,6 +143,18 @@ function loadGuidelines(): string {
     : 'Apply standard partner MDF claim validation practices.';
 }
 
+async function fetchLiveFxRates(): Promise<string> {
+  try {
+    const res = await fetch('https://api.frankfurter.app/latest');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json() as { base: string; date: string; rates: Record<string, number> };
+    const lines = Object.entries(data.rates).map(([cur, rate]) => `1 ${data.base} = ${rate} ${cur}`);
+    return `Live FX Rates (ECB via Frankfurter, ${data.date}):\n${lines.join('\n')}`;
+  } catch {
+    return 'Live FX rates unavailable — use approximate market rates if needed.';
+  }
+}
+
 async function toText(doc: UploadedDocument): Promise<string> {
   const ext = doc.name.split('.').pop()?.toLowerCase() ?? '';
   try {
@@ -186,6 +198,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!claimData) return res.status(400).json({ error: 'Missing claimData' });
 
   const guidelines = loadGuidelines();
+  const fxRates = await fetchLiveFxRates();
   const now = new Date().toISOString();
 
   const claimBlock = `=== CLAIM SUBMISSION ===
@@ -205,6 +218,16 @@ Activity End Date: ${claimData.activityEndDate}
 === SOURCE GUIDELINES ===
 ${guidelines}
 === END GUIDELINES ===
+
+=== LIVE FX RATES ===
+${fxRates}
+=== END FX RATES ===
+
+CURRENCY CONVERSION RULES:
+- If the claim currency and invoice currency differ, use the live rates above to convert and compare amounts.
+- A converted amount difference of ≤5% is ACCEPTABLE: mark "Currency consistency" as "pass" and do NOT flag as an issue.
+- A difference of >5% should be a "warning" (never "critical" or "high"): add a low-severity issue and mark "Currency consistency" as "warning".
+- If the amounts match within 5% after conversion, conclude the claim is consistent and keep it green.
 
 === VALIDATION TASK ===
 Analyze the claim submission against all provided evidence documents and the guidelines above.

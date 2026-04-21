@@ -373,9 +373,6 @@ export default function Page() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <span className="badge-info hidden md:inline-flex">
-                <Sparkles className="w-3 h-3" /> AI-Powered Analysis
-              </span>
               {(result || error) && (
                 <button onClick={reset} className="btn-secondary">
                   <Plus className="w-4 h-4" /> New Claim
@@ -405,7 +402,7 @@ export default function Page() {
         <main className="max-w-[1600px] mx-auto px-6 py-6">
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
             {/* LEFT: Form + Upload */}
-            <div className="lg:col-span-2 space-y-5">
+            <div className="lg:col-span-2 space-y-3">
               {/* Partner Details */}
               <section className="card">
                 <div className="card-header">
@@ -414,7 +411,7 @@ export default function Page() {
                   </div>
                   <h2 className="section-title">Partner Details</h2>
                 </div>
-                <div className="card-body space-y-4">
+                <div className="card-body space-y-3">
                   <div>
                     <label className="label">Partner Name *</label>
                     <input className={clsx('input-field', errs.partnerName && 'error')} placeholder="s-peers AG"
@@ -432,7 +429,7 @@ export default function Page() {
                   </div>
                   <h2 className="section-title">Budget & Funding</h2>
                 </div>
-                <div className="card-body grid grid-cols-2 gap-4">
+                <div className="card-body grid grid-cols-2 gap-3">
                   <div className="col-span-2">
                     <label className="label">Funds Requested (€)</label>
                     <input type="number" step="0.01" className="input-field"
@@ -459,7 +456,7 @@ export default function Page() {
                   </div>
                   <h2 className="section-title">Request Details</h2>
                 </div>
-                <div className="card-body grid grid-cols-2 gap-4">
+                <div className="card-body grid grid-cols-2 gap-3">
                   <div className="col-span-2">
                     <label className="label">Request Number</label>
                     <input className="input-field" placeholder="3UJNKL4QDMK"
@@ -501,7 +498,7 @@ export default function Page() {
                   </div>
                   <h2 className="section-title">Activity & Funding Dates</h2>
                 </div>
-                <div className="card-body grid grid-cols-2 gap-4">
+                <div className="card-body grid grid-cols-2 gap-3">
                   <div className="col-span-2">
                     <label className="label">Fund Request Submitted</label>
                     <input type="date" className="input-field"
@@ -538,13 +535,13 @@ export default function Page() {
                     onDrop={onDrop}
                     onClick={() => fileRef.current?.click()}
                     className={clsx(
-                      'relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all',
+                      'relative border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all',
                       drag ? 'border-brand-600 bg-brand-50' : 'border-slate-300 hover:border-brand-500 hover:bg-slate-50',
                     )}
                   >
-                    <Upload className={clsx('w-8 h-8 mx-auto mb-2', drag ? 'text-brand-600' : 'text-slate-400')} />
-                    <p className="text-sm font-medium text-slate-700">Drop files here or click to browse</p>
-                    <p className="text-xs text-slate-500 mt-1">PDF, Images, DOCX, XLSX, CSV, TXT — up to 25MB</p>
+                    <Upload className={clsx('w-6 h-6 mx-auto mb-1', drag ? 'text-brand-600' : 'text-slate-400')} />
+                    <p className="text-sm font-medium text-slate-700">Drop files or click to browse</p>
+                    <p className="text-xs text-slate-500">PDF, Images, DOCX, XLSX, CSV, TXT — max 25MB</p>
                     <input ref={fileRef} type="file" multiple className="hidden"
                       accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.doc,.docx,.xls,.xlsx,.txt,.csv,.json"
                       onChange={e => e.target.files && addFiles(e.target.files)} />
@@ -624,14 +621,11 @@ function EmptyPanel() {
           <div>
             <h3 className="text-2xl font-bold tracking-tight">Claim Validation Portal</h3>
             <p className="text-sm text-white/80 mt-1 max-w-xl">
-              An AI-powered analyst for SAP partner Development Funds (DF) claims. Aligned to the
-              SAP DF Activity Hierarchy V10 (2026). Enter your claim details, upload supporting
-              evidence, and receive a structured validation report in under a minute.
+              Validates SAP partner Development Funds (DF) claims against SAP DF Activity
+              Hierarchy V10 (2026). Enter claim details, upload supporting evidence, and receive
+              a structured validation report in under a minute.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-white/15 border border-white/20">
-                <Sparkles className="w-3 h-3" /> AI-powered analysis
-              </span>
               <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-white/15 border border-white/20">
                 <FileCheck className="w-3 h-3" /> SAP DF Hierarchy V10
               </span>
@@ -1049,7 +1043,7 @@ function SummaryModal({ claim, result, onClose }: { claim: ClaimFormData; result
         <div style={{ fontSize: '12px', color: dc.text }}>{result.summary}</div>
       </div>
 
-      {/* AI Intelligence Answer */}
+      {/* Advisory Answer */}
       {result.aiIntelligenceAnswer && (() => {
         const aia = result.aiIntelligenceAnswer;
         const rc = aia.recommendation === 'Approve'
@@ -1059,10 +1053,10 @@ function SummaryModal({ claim, result, onClose }: { claim: ClaimFormData; result
             : PRINT_STATUS_COLORS.warning;
         return (
           <div style={{ marginBottom: '20px', breakInside: 'avoid' as const }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.05em', color: '#475569', marginBottom: '8px' }}>AI Intelligence Answer</div>
+            <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.05em', color: '#475569', marginBottom: '8px' }}>Advisory Answer</div>
             <div style={{ border: '1px solid #e2e8f0', borderRadius: '6px', padding: '12px 14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-                <span style={{ fontSize: '11px', fontWeight: 600, color: '#475569' }}>AI Recommendation:</span>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: '#475569' }}>Recommendation:</span>
                 <PrintBadge label={aia.recommendation} colors={rc} />
               </div>
               <div style={{ fontSize: '11px', color: '#475569' }}>
@@ -1253,10 +1247,10 @@ function SummaryModal({ claim, result, onClose }: { claim: ClaimFormData; result
 
             {result.aiIntelligenceAnswer && (
               <section>
-                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-2">AI Intelligence Answer</h3>
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-2">Advisory Answer</h3>
                 <div className="border border-slate-200 rounded-lg p-4">
                   <div className="flex items-center gap-3 mb-2">
-                    <span className="text-xs font-semibold text-slate-600">AI Recommendation:</span>
+                    <span className="text-xs font-semibold text-slate-600">Recommendation:</span>
                     <span className={clsx(
                       'badge border',
                       result.aiIntelligenceAnswer.recommendation === 'Approve' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'

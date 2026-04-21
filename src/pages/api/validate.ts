@@ -183,10 +183,11 @@ Partner Name: ${claimData.partnerName}
 Partner ID: [Extract from uploaded documents — not submitted by user]
 Funds Requested: €${claimData.budgetAllocationAmount}
 Funding Approved: €${claimData.fundingApproved}
-Category: ${claimData.category}
+DF Category: ${claimData.category}
 Request Number: ${claimData.requestNumber}
 Activity Type: ${claimData.activityType}
 Activity: ${claimData.activity}
+Primary SAP Solution: ${claimData.primarySapSolution || 'Not provided'}
 Fund Request Submitted: ${claimData.fundRequestSubmittedDate}
 Fund Approved Date: ${claimData.fundApprovedDate || 'Not provided'}
 Activity Start Date: ${claimData.activityStartDate}
@@ -214,9 +215,10 @@ Return ONLY valid JSON — no markdown fences, no extra text outside the JSON ob
     {"field":"activityStartDate","label":"Activity Start Date","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
     {"field":"activityEndDate","label":"Activity End Date","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
     {"field":"fundingApproved","label":"Funding Approved","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
-    {"field":"category","label":"Category","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
+    {"field":"category","label":"DF Category","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
     {"field":"activityType","label":"Activity Type","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
-    {"field":"activity","label":"Activity Description","submittedValue":"...","extractedValue":"...","status":"...","note":"..."}
+    {"field":"activity","label":"Activity","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
+    {"field":"primarySapSolution","label":"Primary SAP Solution","submittedValue":"...","extractedValue":"...","status":"...","note":"..."}
   ],
   "documentAnalysis": [
     {"fileName":"...","type":"Invoice|Receipt|Attendance|Photo|Contract|Quote|Other","summary":"...","keyDataFound":["..."],"issues":["..."],"relevance":"high|medium|low"}
@@ -225,6 +227,7 @@ Return ONLY valid JSON — no markdown fences, no extra text outside the JSON ob
     {"requirement":"Third party invoice confirmation to program guidelines","status":"pass|fail|warning|missing|partial","detail":"..."},
     {"requirement":"Partner invoices confirmation to program guidelines","status":"...","detail":"..."},
     {"requirement":"Proof of performance confirmation to program guidelines","status":"...","detail":"..."},
+    {"requirement":"DF Category / Activity Type / Activity alignment with SAP DF Activity Hierarchy V10","status":"...","detail":"..."},
     {"requirement":"Partner identification on documents","status":"...","detail":"..."},
     {"requirement":"Monetary amounts reconciled","status":"...","detail":"..."},
     {"requirement":"Activity dates confirmed in evidence","status":"...","detail":"..."},

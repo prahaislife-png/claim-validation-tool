@@ -5,6 +5,7 @@ export interface ClaimFormData {
   requestNumber: string;
   activityType: string;
   activity: string;
+  primarySapSolution: string;
   fundRequestSubmittedDate: string;
   fundApprovedDate: string;
   activityStartDate: string;

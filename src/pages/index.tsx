@@ -16,26 +16,136 @@ import type {
 import { useAuth, logAction } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 
-const CATEGORIES = ['Event', 'Content Syndication', 'Digital Marketing', 'Telemarketing', 'Training', 'Trade Show', 'Other'];
-const ACTIVITY_TYPES = ['Event', 'Digital', 'Content', 'Training', 'Demand Generation', 'Other'];
-const ACTIVITY_MAP: Record<string, string[]> = {
-  Event: ['Physical Events (SAP Led)', 'Physical Events (Partner Led)', 'Virtual Events', 'Webinar', 'Trade Show', 'Co-branded Event'],
-  Digital: ['Email Campaign', 'Social Media', 'Search/PPC', 'Display Advertising', 'Retargeting', 'SEO'],
-  Content: ['Case Study', 'White Paper', 'Blog Post', 'Video Production', 'Infographic', 'Newsletter'],
-  Training: ['Partner Training', 'End Customer Training', 'Workshop', 'Certification'],
-  'Demand Generation': ['Telemarketing', 'Inside Sales Support', 'Lead Generation', 'ABM Campaign'],
-  Other: ['Other'],
+// SAP DF (Development Funds) Activity Hierarchy V10 — sourced from
+// reference_docs/SAP DF Activity Hierarchy V10 2025 to 2026 Changes to CS for DEMO NOV 28.xlsx
+// Sheet: "2026 DF CS AH DEMO Load Nov 28" (authoritative 2026 data load).
+const SAP_DF_HIERARCHY: Record<string, Record<string, string[]>> = {
+  'Activation': {
+    'Activation': ['Cloud Test and Demo'],
+  },
+  'Demand Generation': {
+    'Demand Content': [
+      'Analysts / Industry reports',
+      'Campaign email content',
+      'Campaign Landing Page',
+      'Campaign Personas',
+      'Campaign Playbook',
+      'Co-branded webinar deck & script',
+      'Content Syndication Plan',
+      'Customer Case Study / Customer Evidence (video)',
+      'Customer Case Study / Customer Evidence (written)',
+      'Data Sheet / Solution Brief',
+      'Demand Content - Other',
+      'Demo script',
+      'eBook (interactive)',
+      'eBook (static)',
+      'Infographic',
+      'Market Intelligence',
+      'Messaging Brief',
+      'Positioning & Messaging Framework',
+      'Product Demo Video',
+      'Product/solution copy block',
+      'ROI tools',
+      'Sales Content - Other',
+      'Social/blog post content',
+      'To Customer FAQ',
+      'To Customer Pitch Deck',
+      'To Customer Sizzle Video',
+      'To Partner Sales Battlecard',
+      'To Partner Sales Guide',
+      'To Partner Sales Playbook',
+      'To Partner Sales Script',
+      'Web banners',
+      'Webinar Brief',
+      'Whitepaper',
+    ],
+    'Demand Service': [
+      'Digital Campaign execution services',
+      'SEO Services',
+      'Social Campaign execution services',
+      'Social Selling Tools',
+      'Target Lists Service',
+      'Telesales lead/opportunity qualification services',
+    ],
+    'Event': [
+      'Physical Events (Partner Led) (50%)',
+      'Physical Events (SAP Led) - Execution',
+      'Physical Events (SAP Led) - Sponsorship',
+      'Registration / SAP Led tickets',
+      'Third Party Event (Industry, Tech Conference, Ignite, Invent, etc.)',
+      'Webinar / Digital Event Services',
+    ],
+    'On-Premise Demand Generation': [
+      'SAP Business One Solution (50%)',
+    ],
+  },
+  'Enablement': {
+    'Customer Success Enablement': [
+      'AI Use cases for Customer Success',
+      'Customer Success 1:1 Coaching',
+      'Customer Success Business Model',
+      'Customer Success Hands On Workshop',
+      'Customer Success Health Score and Tools',
+      'Customer Success Practice Assessment (CSPA)',
+      'Customer Success Process Development',
+      'Customer Success Services Monetization use cases',
+      'Value Management Onboarding',
+      'Value Realization Advanced Coaching',
+      'Value Realization Hands On Course',
+    ],
+    'Event': [
+      'Physical Events (SAP Led) - Execution',
+      'Physical Events (SAP Led) - Sponsorship',
+      'Registration / SAP Led tickets',
+    ],
+    'Partner Enablement': [
+      'Adoption and deployment services enablement',
+      'Marketing Enablement',
+      'Pre-Sales Enablement',
+      'Sales Enablement',
+    ],
+    'Technical Training & Certification': [
+      'Partner Coaching Services',
+      'SAP Certification Training',
+      'SAP Joule for Consultants',
+      'SAP Learning Hub',
+    ],
+  },
+  'Recruitment': {
+    'Recruitment': [
+      'Candidate Screening & Assessment',
+      'Digital recruitment',
+      'Join the SAP family',
+      'Recruitment Event (Physical)',
+      'Recruitment Event (Virtual)',
+      'Sourcing (e.g. Recruitment platform, Target Lists)',
+    ],
+  },
 };
+
+const CATEGORIES = Object.keys(SAP_DF_HIERARCHY);
+
+// 2026 SAP Solution Field Values — from "2026 SAP Solution Field Values" sheet
+const PRIMARY_SAP_SOLUTIONS = [
+  'Finance and Spend Management',
+  'Supply Chain Management',
+  'Human Capital Management',
+  'Customer Experience',
+  'Business Transformation Management',
+  'Business Technology Platform',
+  'Other',
+];
 
 const REQUIRED: (keyof ClaimFormData)[] = ['partnerName'];
 
 const FIELD_LABELS: Record<keyof ClaimFormData, string> = {
   partnerName: 'Partner Name',
   budgetAllocationAmount: 'Funds Requested (€)',
-  category: 'Category',
+  category: 'DF Category',
   requestNumber: 'Request Number',
   activityType: 'Activity Type',
   activity: 'Activity',
+  primarySapSolution: 'Primary SAP Solution',
   fundRequestSubmittedDate: 'Fund Request Submitted',
   fundApprovedDate: 'Fund Approved Date',
   activityStartDate: 'Activity Start Date',
@@ -45,7 +155,8 @@ const FIELD_LABELS: Record<keyof ClaimFormData, string> = {
 
 const EMPTY_FORM: ClaimFormData = {
   partnerName: '', budgetAllocationAmount: '', category: '', requestNumber: '',
-  activityType: '', activity: '', fundRequestSubmittedDate: '', fundApprovedDate: '',
+  activityType: '', activity: '', primarySapSolution: '',
+  fundRequestSubmittedDate: '', fundApprovedDate: '',
   activityStartDate: '', activityEndDate: '', fundingApproved: '',
 };
 
@@ -183,7 +294,13 @@ export default function Page() {
   if (!profile) return null;
 
   const setField = (key: keyof ClaimFormData, value: string) => {
-    setClaim(prev => key === 'activityType' ? { ...prev, activityType: value, activity: '' } : { ...prev, [key]: value });
+    setClaim(prev => {
+      // Cascading resets per SAP DF hierarchy: changing Category clears Activity Type + Activity;
+      // changing Activity Type clears Activity.
+      if (key === 'category')     return { ...prev, category: value, activityType: '', activity: '' };
+      if (key === 'activityType') return { ...prev, activityType: value, activity: '' };
+      return { ...prev, [key]: value };
+    });
     if (errs[key]) setErrs(e => { const n = { ...e }; delete n[key]; return n; });
   };
 
@@ -225,7 +342,10 @@ export default function Page() {
 
   const reset = () => { setClaim(EMPTY_FORM); setDocs([]); setResult(null); setError(null); setErrs({}); };
 
-  const activities = ACTIVITY_MAP[claim.activityType] ?? [];
+  const activityTypesForCategory = claim.category ? Object.keys(SAP_DF_HIERARCHY[claim.category] ?? {}) : [];
+  const activities = (claim.category && claim.activityType)
+    ? (SAP_DF_HIERARCHY[claim.category]?.[claim.activityType] ?? [])
+    : [];
   const stats = result ? {
     pass: result.fieldValidations.filter(f => f.status === 'pass').length,
     fail: result.fieldValidations.filter(f => f.status === 'fail' || f.status === 'missing').length,
@@ -331,12 +451,13 @@ export default function Page() {
                       onChange={e => setField('fundingApproved', e.target.value)} />
                   </div>
                   <div className="col-span-2">
-                    <label className="label">Category</label>
+                    <label className="label">DF Category</label>
                     <select className="input-field"
                       value={claim.category} onChange={e => setField('category', e.target.value)}>
-                      <option value="">Select category</option>
+                      <option value="">Select DF category</option>
                       {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
+                    <p className="text-xs text-slate-500 mt-1">Per SAP DF Activity Hierarchy V10 (2026).</p>
                   </div>
                 </div>
               </section>
@@ -357,10 +478,10 @@ export default function Page() {
                   </div>
                   <div>
                     <label className="label">Activity Type</label>
-                    <select className="input-field"
+                    <select className="input-field" disabled={!claim.category}
                       value={claim.activityType} onChange={e => setField('activityType', e.target.value)}>
-                      <option value="">Select type</option>
-                      {ACTIVITY_TYPES.map(a => <option key={a} value={a}>{a}</option>)}
+                      <option value="">{claim.category ? 'Select activity type' : 'Pick DF category first'}</option>
+                      {activityTypesForCategory.map(a => <option key={a} value={a}>{a}</option>)}
                     </select>
                   </div>
                   <div>
@@ -370,6 +491,15 @@ export default function Page() {
                       <option value="">{claim.activityType ? 'Select activity' : 'Pick activity type first'}</option>
                       {activities.map(a => <option key={a} value={a}>{a}</option>)}
                     </select>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="label">Primary SAP Solution</label>
+                    <select className="input-field"
+                      value={claim.primarySapSolution} onChange={e => setField('primarySapSolution', e.target.value)}>
+                      <option value="">Select SAP solution (optional)</option>
+                      {PRIMARY_SAP_SOLUTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                    <p className="text-xs text-slate-500 mt-1">2026 SAP Solution field values.</p>
                   </div>
                 </div>
               </section>
@@ -511,15 +641,16 @@ function EmptyPanel() {
           <div>
             <h3 className="text-2xl font-bold tracking-tight">Claim Validation Portal</h3>
             <p className="text-sm text-white/80 mt-1 max-w-xl">
-              An AI-powered analyst for partner marketing (MDF) claims. Enter your claim details, upload
-              supporting evidence, and receive a structured validation report in under a minute.
+              An AI-powered analyst for SAP partner Development Funds (DF) claims. Aligned to the
+              SAP DF Activity Hierarchy V10 (2026). Enter your claim details, upload supporting
+              evidence, and receive a structured validation report in under a minute.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-white/15 border border-white/20">
                 <Sparkles className="w-3 h-3" /> AI-powered analysis
               </span>
               <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-white/15 border border-white/20">
-                <FileCheck className="w-3 h-3" /> Guideline-aware
+                <FileCheck className="w-3 h-3" /> SAP DF Hierarchy V10
               </span>
               <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-white/15 border border-white/20">
                 <Clock className="w-3 h-3" /> ~45 sec
@@ -563,7 +694,7 @@ function EmptyPanel() {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-3 mb-6">
           {[
             { Icon: FileSearch,    label: 'Evidence Extraction', tone: 'from-violet-500 to-indigo-600',  bg: 'from-violet-50 to-white',  border: 'border-violet-200' },
             { Icon: BarChart3,     label: 'Field Validation',    tone: 'from-emerald-500 to-teal-600',   bg: 'from-emerald-50 to-white', border: 'border-emerald-200' },
@@ -576,6 +707,30 @@ function EmptyPanel() {
               <p className="text-xs font-semibold text-slate-800">{label}</p>
             </div>
           ))}
+        </div>
+
+        <div className="p-5 rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white">
+          <h4 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+            <div className="icon-tile w-7 h-7 bg-gradient-to-br from-brand-600 to-brand-800">
+              <Layers className="w-4 h-4 text-white" />
+            </div>
+            SAP DF Categories &amp; Activity Types
+          </h4>
+          <p className="text-xs text-slate-600 mb-3">
+            Category → Activity Type mappings the tool validates against. Sourced from
+            &ldquo;SAP DF Activity Hierarchy V10&rdquo; (2026 DEMO Load, Nov 28).
+          </p>
+          <ul className="text-xs text-slate-700 space-y-1.5">
+            {Object.entries(SAP_DF_HIERARCHY).map(([cat, types]) => (
+              <li key={cat} className="flex items-start gap-2">
+                <ChevronRight className="w-3.5 h-3.5 text-brand-600 flex-shrink-0 mt-0.5" />
+                <span>
+                  <span className="font-semibold text-slate-900">{cat}</span>
+                  <span className="text-slate-500"> · {Object.keys(types).join(' / ')}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
     </div>

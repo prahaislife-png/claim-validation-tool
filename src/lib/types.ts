@@ -7,10 +7,8 @@ export interface ClaimFormData {
   activity: string;
   primarySapSolution: string;
   fundRequestSubmittedDate: string;
-  fundApprovedDate: string;
   activityStartDate: string;
   activityEndDate: string;
-  fundingApproved: string;
 }
 
 export interface UploadedDocument {
@@ -64,6 +62,31 @@ export interface AiIntelligenceAnswer {
   reason: string;
 }
 
+// Document Authenticity Signals
+export type AuthenticityRiskLevel = 'Low' | 'Medium' | 'High';
+export type AuthenticityConfidence = 'Low' | 'Medium' | 'High';
+
+export interface AuthenticitySignal {
+  strength: 'weak' | 'moderate' | 'strong';
+  description: string;
+}
+
+export interface FileAuthenticity {
+  fileName: string;
+  riskLevel: AuthenticityRiskLevel;
+  confidence: AuthenticityConfidence;
+  conclusion: string;
+  evidence: AuthenticitySignal[];
+  limitations: string;
+}
+
+export interface DocumentAuthenticityResult {
+  overallRiskLevel: AuthenticityRiskLevel;
+  overallConfidence: AuthenticityConfidence;
+  overallConclusion: string;
+  files: FileAuthenticity[];
+}
+
 export interface ValidationResult {
   decision: DecisionType;
   confidence: number;
@@ -76,4 +99,5 @@ export interface ValidationResult {
   auditTimestamp: string;
   processingNotes: string;
   aiIntelligenceAnswer?: AiIntelligenceAnswer;
+  documentAuthenticity?: DocumentAuthenticityResult;
 }

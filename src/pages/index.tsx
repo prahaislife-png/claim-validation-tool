@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import type {
   ClaimFormData, UploadedDocument, ValidationResult, StatusType, SeverityType, DecisionType,
+  DocumentAuthenticityResult, FileAuthenticity,
 } from '@/lib/types';
 import { useAuth, logAction } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
@@ -147,17 +148,14 @@ const FIELD_LABELS: Record<keyof ClaimFormData, string> = {
   activity: 'Activity',
   primarySapSolution: 'Primary SAP Solution',
   fundRequestSubmittedDate: 'Fund Request Submitted',
-  fundApprovedDate: 'Fund Approved Date',
   activityStartDate: 'Activity Start Date',
   activityEndDate: 'Activity End Date',
-  fundingApproved: 'Funding Approved (€)',
 };
 
 const EMPTY_FORM: ClaimFormData = {
   partnerName: '', budgetAllocationAmount: '', category: '', requestNumber: '',
   activityType: '', activity: '', primarySapSolution: '',
-  fundRequestSubmittedDate: '', fundApprovedDate: '',
-  activityStartDate: '', activityEndDate: '', fundingApproved: '',
+  fundRequestSubmittedDate: '', activityStartDate: '', activityEndDate: '',
 };
 
 const STATUS_STYLES: Record<StatusType, { cls: string; label: string; Icon: React.ComponentType<{ className?: string }> }> = {
@@ -206,7 +204,7 @@ export default function Page() {
   const [result, setResult] = useState<ValidationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [errs, setErrs] = useState<Partial<Record<keyof ClaimFormData, boolean>>>({});
-  const [tab, setTab] = useState<'overview' | 'fields' | 'documents' | 'guidelines' | 'issues'>('overview');
+  const [tab, setTab] = useState<'overview' | 'fields' | 'documents' | 'guidelines' | 'issues' | 'authenticity'>('overview');
   const [drag, setDrag] = useState(false);
   const [step, setStep] = useState(0);
   const [showSummary, setShowSummary] = useState(false);
@@ -371,10 +369,7 @@ export default function Page() {
               </div>
               <div>
                 <h1 className="text-base font-bold text-slate-900 leading-tight">Claim Validation Portal</h1>
-                <p className="text-xs text-slate-500">
-                  Partner Marketing Fund (MDF) Analysis
-                  <span className="hidden sm:inline"> · A project by <span className="font-semibold text-brand-700">Govind Amilkanthwar</span></span>
-                </p>
+                <p className="text-xs text-slate-500">Partner Marketing Fund (MDF) Analysis</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -438,17 +433,11 @@ export default function Page() {
                   <h2 className="section-title">Budget & Funding</h2>
                 </div>
                 <div className="card-body grid grid-cols-2 gap-4">
-                  <div>
+                  <div className="col-span-2">
                     <label className="label">Funds Requested (€)</label>
                     <input type="number" step="0.01" className="input-field"
                       placeholder="1614.77" value={claim.budgetAllocationAmount}
                       onChange={e => setField('budgetAllocationAmount', e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="label">Funding Approved (€)</label>
-                    <input type="number" step="0.01" className="input-field"
-                      placeholder="1614.77" value={claim.fundingApproved}
-                      onChange={e => setField('fundingApproved', e.target.value)} />
                   </div>
                   <div className="col-span-2">
                     <label className="label">DF Category</label>
@@ -513,15 +502,10 @@ export default function Page() {
                   <h2 className="section-title">Activity & Funding Dates</h2>
                 </div>
                 <div className="card-body grid grid-cols-2 gap-4">
-                  <div>
+                  <div className="col-span-2">
                     <label className="label">Fund Request Submitted</label>
                     <input type="date" className="input-field"
                       value={claim.fundRequestSubmittedDate} onChange={e => setField('fundRequestSubmittedDate', e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="label">Fund Approved Date</label>
-                    <input type="date" className="input-field"
-                      value={claim.fundApprovedDate} onChange={e => setField('fundApprovedDate', e.target.value)} />
                   </div>
                   <div>
                     <label className="label">Activity Start Date</label>
@@ -612,8 +596,7 @@ export default function Page() {
           </div>
         </main>
 
-        <footer className="max-w-[1600px] mx-auto px-6 py-6 text-center text-xs text-slate-500 space-y-1">
-          <p>A project by <span className="font-semibold text-slate-700">Govind Amilkanthwar</span></p>
+        <footer className="max-w-[1600px] mx-auto px-6 py-6 text-center text-xs text-slate-500">
           <p>Results are analytical recommendations and require human review for final approval.</p>
         </footer>
 
@@ -772,8 +755,8 @@ function LoadingPanel({ steps, current }: { steps: string[]; current: number }) 
 function ResultsPanel({ result, stats, tab, setTab, onViewSummary }: {
   result: ValidationResult;
   stats: { pass: number; fail: number; warn: number; total: number; criticalIssues: number };
-  tab: 'overview' | 'fields' | 'documents' | 'guidelines' | 'issues';
-  setTab: (t: 'overview' | 'fields' | 'documents' | 'guidelines' | 'issues') => void;
+  tab: 'overview' | 'fields' | 'documents' | 'guidelines' | 'issues' | 'authenticity';
+  setTab: (t: 'overview' | 'fields' | 'documents' | 'guidelines' | 'issues' | 'authenticity') => void;
   onViewSummary: () => void;
 }) {
   const d = DECISION_STYLES[result.decision];
@@ -823,6 +806,7 @@ function ResultsPanel({ result, stats, tab, setTab, onViewSummary }: {
               ['documents', `Documents (${result.documentAnalysis.length})`, FileText],
               ['guidelines', `Guidelines (${result.guidelineChecks.length})`, FileCheck],
               ['issues', `Issues (${result.issues.length})`, AlertOctagon],
+              ['authenticity', 'Authenticity', Shield],
             ] as const).map(([key, label, I]) => (
               <button key={key} onClick={() => setTab(key)}
                 className={clsx('tab-btn flex items-center gap-1.5 whitespace-nowrap', tab === key && 'active')}>
@@ -837,6 +821,7 @@ function ResultsPanel({ result, stats, tab, setTab, onViewSummary }: {
           {tab === 'documents' && <DocumentsTab result={result} />}
           {tab === 'guidelines' && <GuidelinesTab result={result} />}
           {tab === 'issues' && <IssuesTab result={result} />}
+          {tab === 'authenticity' && <AuthenticityTab result={result} />}
         </div>
       </div>
 
@@ -1051,7 +1036,7 @@ function SummaryModal({ claim, result, onClose }: { claim: ClaimFormData; result
       <div style={{ textAlign: 'center', borderBottom: '2px solid #e2e8f0', paddingBottom: '16px', marginBottom: '20px' }}>
         <div style={{ fontSize: '22px', fontWeight: 800, color: '#1e293b', marginBottom: '4px' }}>Claim Validation Summary</div>
         <div style={{ fontSize: '11px', color: '#64748b' }}>
-          Generated {new Date(result.auditTimestamp).toLocaleString()} · Claim Validation Portal · A project by Govind Amilkanthwar
+          Generated {new Date(result.auditTimestamp).toLocaleString()} · Claim Validation Portal
         </div>
       </div>
 
@@ -1183,9 +1168,54 @@ function SummaryModal({ claim, result, onClose }: { claim: ClaimFormData; result
         </div>
       )}
 
+      {/* Document Authenticity Signals — print */}
+      {result.documentAuthenticity && (() => {
+        const auth = result.documentAuthenticity!;
+        const riskColor = auth.overallRiskLevel === 'High' ? '#991b1b' : auth.overallRiskLevel === 'Medium' ? '#92400e' : '#166534';
+        const riskBg   = auth.overallRiskLevel === 'High' ? '#fef2f2' : auth.overallRiskLevel === 'Medium' ? '#fffbeb' : '#f0fdf4';
+        const riskBdr  = auth.overallRiskLevel === 'High' ? '#fecaca' : auth.overallRiskLevel === 'Medium' ? '#fde68a' : '#bbf7d0';
+        const sigColor = (s: string) => s === 'strong' ? '#991b1b' : s === 'moderate' ? '#92400e' : '#475569';
+        return (
+          <div style={{ marginBottom: '20px', breakInside: 'avoid' as const }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.05em', color: '#475569', marginBottom: '8px' }}>Document Authenticity Signals</div>
+            <div style={{ background: riskBg, border: `1px solid ${riskBdr}`, borderRadius: '6px', padding: '10px 12px', marginBottom: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: riskColor }}>Overall Risk: {auth.overallRiskLevel}</span>
+                <span style={{ fontSize: '10px', color: '#64748b' }}>Confidence: {auth.overallConfidence}</span>
+              </div>
+              <div style={{ fontSize: '11px', color: riskColor }}>{auth.overallConclusion}</div>
+            </div>
+            {auth.files.map((file, i) => (
+              <div key={i} style={{ border: '1px solid #e2e8f0', borderRadius: '6px', padding: '8px 10px', marginBottom: '6px', breakInside: 'avoid' as const }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: '#1e293b' }}>{file.fileName}</span>
+                  <PrintBadge label={`${file.riskLevel} Risk`} colors={
+                    file.riskLevel === 'High'   ? { bg: '#fef2f2', text: '#991b1b', border: '#fecaca' } :
+                    file.riskLevel === 'Medium' ? { bg: '#fffbeb', text: '#92400e', border: '#fde68a' } :
+                                                  { bg: '#f0fdf4', text: '#166534', border: '#bbf7d0' }
+                  } />
+                </div>
+                <div style={{ fontSize: '11px', color: '#475569', marginBottom: '6px' }}>{file.conclusion}</div>
+                {file.evidence && file.evidence.length > 0 && (
+                  <ul style={{ margin: 0, paddingLeft: '0', listStyle: 'none' }}>
+                    {file.evidence.map((sig, j) => (
+                      <li key={j} style={{ fontSize: '10px', color: sigColor(sig.strength), marginBottom: '2px', display: 'flex', gap: '6px' }}>
+                        <span style={{ fontWeight: 700, textTransform: 'uppercase' as const }}>{sig.strength}</span>
+                        <span>{sig.description}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px', fontStyle: 'italic' }}>{file.limitations}</div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
       {/* Footer */}
       <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px', textAlign: 'center' as const, fontSize: '10px', color: '#94a3b8' }}>
-        Generated by Claim Validation Portal · A project by Govind Amilkanthwar
+        Generated by Claim Validation Portal
       </div>
     </div>
   );
@@ -1333,8 +1363,61 @@ function SummaryModal({ claim, result, onClose }: { claim: ClaimFormData; result
               </section>
             )}
 
+            {result.documentAuthenticity && (
+              <section>
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-3">Document Authenticity Signals</h3>
+                {/* Overall */}
+                {(() => {
+                  const auth = result.documentAuthenticity!;
+                  const rs = RISK_STYLES[auth.overallRiskLevel] ?? RISK_STYLES.Low;
+                  return (
+                    <div className={clsx('rounded-lg border p-4 mb-3', rs.card)}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-semibold text-slate-800">Overall Assessment</span>
+                        <div className="flex items-center gap-2">
+                          <AuthenticityRiskBadge level={auth.overallRiskLevel} />
+                          <span className="text-xs text-slate-500">{auth.overallConfidence} confidence</span>
+                        </div>
+                      </div>
+                      <p className="text-sm text-slate-700">{auth.overallConclusion}</p>
+                    </div>
+                  );
+                })()}
+                {/* Per file */}
+                <div className="space-y-2">
+                  {result.documentAuthenticity!.files.map((file, i) => {
+                    const rs = RISK_STYLES[file.riskLevel] ?? RISK_STYLES.Low;
+                    return (
+                      <div key={i} className="border border-slate-200 rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-sm font-medium text-slate-800 truncate">{file.fileName}</p>
+                          <AuthenticityRiskBadge level={file.riskLevel} />
+                        </div>
+                        <p className="text-xs text-slate-600 mb-2">{file.conclusion}</p>
+                        {file.evidence && file.evidence.length > 0 && (
+                          <ul className="space-y-1 mb-2">
+                            {file.evidence.map((sig, j) => {
+                              const ss = SIGNAL_STYLES[sig.strength] ?? SIGNAL_STYLES.weak;
+                              return (
+                                <li key={j} className="flex items-start gap-2 text-xs">
+                                  <span className={clsx('w-2 h-2 rounded-full mt-1 flex-shrink-0', ss.dot)} />
+                                  <span className={clsx('font-semibold flex-shrink-0', ss.text)}>{ss.label}</span>
+                                  <span className="text-slate-600">{sig.description}</span>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+                        <p className="text-xs text-slate-400 italic">{file.limitations}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
             <div className="border-t border-slate-200 pt-4 text-center text-xs text-slate-500">
-              Generated by Claim Validation Portal · A project by Govind Amilkanthwar
+              Generated by Claim Validation Portal
             </div>
           </div>
         </div>
@@ -1346,6 +1429,128 @@ function SummaryModal({ claim, result, onClose }: { claim: ClaimFormData; result
         document.body
       )}
     </>
+  );
+}
+
+// ── Authenticity helpers ────────────────────────────────────────────────────
+
+const RISK_STYLES: Record<string, { badge: string; bar: string; card: string }> = {
+  Low:    { badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', bar: 'bg-emerald-400', card: 'border-emerald-200 bg-emerald-50/40' },
+  Medium: { badge: 'bg-amber-50 text-amber-700 border-amber-200',       bar: 'bg-amber-400',   card: 'border-amber-200 bg-amber-50/40' },
+  High:   { badge: 'bg-red-50 text-red-700 border-red-200',             bar: 'bg-red-500',     card: 'border-red-200 bg-red-50/40' },
+};
+
+const SIGNAL_STYLES: Record<string, { dot: string; label: string; text: string }> = {
+  weak:     { dot: 'bg-slate-400',  label: 'WEAK',     text: 'text-slate-600' },
+  moderate: { dot: 'bg-amber-500',  label: 'MODERATE', text: 'text-amber-700' },
+  strong:   { dot: 'bg-red-500',    label: 'STRONG',   text: 'text-red-700' },
+};
+
+function AuthenticityRiskBadge({ level }: { level: string }) {
+  const s = RISK_STYLES[level] ?? RISK_STYLES.Low;
+  return <span className={clsx('badge border', s.badge)}>{level} Risk</span>;
+}
+
+function AuthenticityTab({ result }: { result: ValidationResult }) {
+  const auth = result.documentAuthenticity;
+  if (!auth) {
+    return (
+      <div className="text-center py-8 text-sm text-slate-500">
+        Document authenticity analysis not available for this result.
+      </div>
+    );
+  }
+
+  const overallStyle = RISK_STYLES[auth.overallRiskLevel] ?? RISK_STYLES.Low;
+
+  return (
+    <div className="space-y-4">
+      {/* Overall summary */}
+      <div className={clsx('rounded-xl border p-5', overallStyle.card)}>
+        <div className="flex items-start justify-between gap-3 mb-2">
+          <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <Shield className="w-4 h-4 text-slate-700" />
+            Overall Authenticity Assessment
+          </h4>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <AuthenticityRiskBadge level={auth.overallRiskLevel} />
+            <span className="text-xs text-slate-500">Confidence: {auth.overallConfidence}</span>
+          </div>
+        </div>
+        <p className="text-sm text-slate-700">{auth.overallConclusion}</p>
+        <div className="mt-3 flex items-center gap-2">
+          <span className="text-xs text-slate-500">Risk level:</span>
+          <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+            <div className={clsx('h-full rounded-full transition-all', overallStyle.bar)}
+              style={{ width: auth.overallRiskLevel === 'Low' ? '20%' : auth.overallRiskLevel === 'Medium' ? '55%' : '90%' }} />
+          </div>
+          <span className={clsx('text-xs font-semibold', auth.overallRiskLevel === 'High' ? 'text-red-600' : auth.overallRiskLevel === 'Medium' ? 'text-amber-600' : 'text-emerald-600')}>
+            {auth.overallRiskLevel}
+          </span>
+        </div>
+      </div>
+
+      {/* Per-file findings */}
+      {auth.files.length > 0 && (
+        <div className="space-y-3">
+          <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Per-File Findings</h4>
+          {auth.files.map((file, i) => <FileAuthenticityCard key={i} file={file} />)}
+        </div>
+      )}
+
+      <p className="text-xs text-slate-400 italic">
+        This assessment identifies possible authenticity signals only. It is not a legal determination.
+        Human review is required before any compliance decision.
+      </p>
+    </div>
+  );
+}
+
+function FileAuthenticityCard({ file }: { file: FileAuthenticity }) {
+  const rs = RISK_STYLES[file.riskLevel] ?? RISK_STYLES.Low;
+  const hasSignals = file.evidence && file.evidence.length > 0;
+
+  return (
+    <div className={clsx('rounded-xl border p-4', rs.card)}>
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <FileSearch className="w-4 h-4 text-slate-500 flex-shrink-0" />
+          <p className="text-sm font-semibold text-slate-800 truncate">{file.fileName}</p>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <AuthenticityRiskBadge level={file.riskLevel} />
+          <span className="text-xs text-slate-500">{file.confidence} conf.</span>
+        </div>
+      </div>
+
+      <p className="text-sm text-slate-700 mb-3">{file.conclusion}</p>
+
+      {hasSignals && (
+        <div className="mb-3">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Observed Signals</p>
+          <ul className="space-y-1.5">
+            {file.evidence.map((sig, j) => {
+              const ss = SIGNAL_STYLES[sig.strength] ?? SIGNAL_STYLES.weak;
+              return (
+                <li key={j} className="flex items-start gap-2 text-xs">
+                  <span className={clsx('w-2 h-2 rounded-full mt-1 flex-shrink-0', ss.dot)} />
+                  <span className={clsx('font-semibold mr-1', ss.text)}>{ss.label}</span>
+                  <span className="text-slate-600">{sig.description}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      {!hasSignals && (
+        <p className="text-xs text-slate-500 italic mb-3">No specific signals observed.</p>
+      )}
+
+      <div className="text-xs text-slate-500 bg-white/60 rounded-lg px-3 py-2 border border-slate-200">
+        <span className="font-semibold text-slate-600">Limitations: </span>{file.limitations}
+      </div>
+    </div>
   );
 }
 

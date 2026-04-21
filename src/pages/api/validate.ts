@@ -49,7 +49,7 @@ async function computeAiIntelligenceAnswer(
 === CLAIM REPORT ===
 Partner: ${claimData.partnerName}
 Activity: ${claimData.activity} | Category: ${claimData.category}
-Funds Requested: €${claimData.budgetAllocationAmount} | Funding Approved: €${claimData.fundingApproved}
+Funds Requested: €${claimData.budgetAllocationAmount}
 Report decision: ${result.decision} | Confidence: ${result.confidence}%
 Report summary: ${result.summary}
 
@@ -190,16 +190,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const claimBlock = `=== CLAIM SUBMISSION ===
 Partner Name: ${claimData.partnerName}
-Partner ID: [Extract from uploaded documents — not submitted by user]
 Funds Requested: €${claimData.budgetAllocationAmount}
-Funding Approved: €${claimData.fundingApproved}
 DF Category: ${claimData.category}
 Request Number: ${claimData.requestNumber}
 Activity Type: ${claimData.activityType}
 Activity: ${claimData.activity}
 Primary SAP Solution: ${claimData.primarySapSolution || 'Not provided'}
 Fund Request Submitted: ${claimData.fundRequestSubmittedDate}
-Fund Approved Date: ${claimData.fundApprovedDate || 'Not provided'}
 Activity Start Date: ${claimData.activityStartDate}
 Activity End Date: ${claimData.activityEndDate}
 === END CLAIM ===`;
@@ -216,15 +213,13 @@ Return ONLY valid JSON — no markdown fences, no extra text outside the JSON ob
 {
   "decision": "APPROVED" | "REJECTED" | "NEEDS_REVIEW",
   "confidence": <0-100>,
-  "summary": "<2-3 sentence executive summary>",
+  "summary": "<2-3 sentence executive summary — do not mention Partner ID>",
   "fieldValidations": [
-    {"field":"partnerId","label":"Partner ID","submittedValue":"(auto-extracted)","extractedValue":"<value found in documents or 'Not found'>","status":"pass|fail|warning|missing|partial","note":"..."},
-    {"field":"partnerName","label":"Partner Name","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
+    {"field":"partnerName","label":"Partner Name","submittedValue":"...","extractedValue":"...","status":"pass|fail|warning|missing|partial","note":"..."},
     {"field":"budgetAllocationAmount","label":"Funds Requested","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
     {"field":"requestNumber","label":"Request Number","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
     {"field":"activityStartDate","label":"Activity Start Date","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
     {"field":"activityEndDate","label":"Activity End Date","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
-    {"field":"fundingApproved","label":"Funding Approved","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
     {"field":"category","label":"DF Category","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
     {"field":"activityType","label":"Activity Type","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
     {"field":"activity","label":"Activity","submittedValue":"...","extractedValue":"...","status":"...","note":"..."},
@@ -242,7 +237,7 @@ Return ONLY valid JSON — no markdown fences, no extra text outside the JSON ob
     {"requirement":"Monetary amounts reconciled","status":"...","detail":"..."},
     {"requirement":"Activity dates confirmed in evidence","status":"...","detail":"..."},
     {"requirement":"Currency consistency throughout","status":"...","detail":"..."},
-    {"requirement":"Funding does not exceed approved amount","status":"...","detail":"..."},
+    {"requirement":"Funds requested amount supported by invoice totals","status":"...","detail":"..."},
     {"requirement":"All required document types present","status":"...","detail":"..."}
   ],
   "issues": [
@@ -250,8 +245,38 @@ Return ONLY valid JSON — no markdown fences, no extra text outside the JSON ob
   ],
   "recommendations": ["..."],
   "auditTimestamp": "${now}",
-  "processingNotes": "Analyzed ${documents.length} document(s) against program guidelines."
+  "processingNotes": "Analyzed ${documents.length} document(s) against program guidelines.",
+  "documentAuthenticity": {
+    "overallRiskLevel": "Low|Medium|High",
+    "overallConfidence": "Low|Medium|High",
+    "overallConclusion": "<neutral summary — e.g. 'no strong authenticity concerns detected' or 'possible tampering signals detected'>",
+    "files": [
+      {
+        "fileName": "<exact filename from submission>",
+        "riskLevel": "Low|Medium|High",
+        "confidence": "Low|Medium|High",
+        "conclusion": "<neutral one-sentence conclusion>",
+        "evidence": [
+          {"strength": "weak|moderate|strong", "description": "<specific observed signal>"}
+        ],
+        "limitations": "<short note on what could not be assessed>"
+      }
+    ]
+  }
 }
+
+DOCUMENT AUTHENTICITY ANALYSIS INSTRUCTIONS:
+For each uploaded file assess the following signals:
+- WEAK signals (small contribution): suspicious filename suffixes such as _edited, v2, copy, final, scan alone; minor whitespace inconsistency
+- MODERATE signals (medium contribution): single inconsistent font or spacing; one data field mismatch (date, total, VAT)
+- STRONG signals (high contribution): multiple corroborated visual inconsistencies; overlaid or pasted text visible; altered numbers with mismatched formatting; inconsistent compression artefacts in image regions; mismatched vendor name/address/logo across related documents; duplicate invoice numbers that should be independent
+
+SCORING RULES:
+- A filename containing "_edited" is ONE weak signal — it alone cannot produce Medium or High risk.
+- Only classify as High risk when two or more STRONG signals corroborate each other.
+- Never state "forged", "fake", or "manipulated" unless multiple strong corroborating signals are present.
+- Prefer wording: "possible tampering signals detected", "editing indicators present", "no strong authenticity concerns detected", "insufficient evidence to determine".
+- If there are no signals at all, conclude "no strong authenticity concerns detected" with Low risk.
 
 Decision rules:
 - APPROVED: critical fields verified, evidence complete, no critical/high issues.
@@ -290,14 +315,13 @@ Decision rules:
 
     const response = await anthropic.messages.create({
       model: 'claude-opus-4-7',
-      max_tokens: 8192,
+      max_tokens: 16384,
       system: 'You are a senior claims validation analyst. Return only valid JSON — no markdown, no prose outside the JSON.',
       messages: [{ role: 'user', content: content as Anthropic.MessageParam['content'] }],
     });
 
     const raw = response.content[0]?.type === 'text' ? response.content[0].text : '';
     if (!raw) throw new Error('Empty response from Claude');
-    // Log stop reason to catch max-tokens truncation early
     if (response.stop_reason === 'max_tokens') {
       console.error('[validate] Claude response hit max_tokens — JSON may be truncated');
     }

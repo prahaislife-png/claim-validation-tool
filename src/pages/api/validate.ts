@@ -119,10 +119,20 @@ function loadGuidelines(): string {
           // eslint-disable-next-line @typescript-eslint/no-require-imports
           const XLSX = require('xlsx') as typeof import('xlsx');
           const wb = XLSX.readFile(fullPath);
-          const sheets = wb.SheetNames.map(n => {
-            const rows = XLSX.utils.sheet_to_csv(wb.Sheets[n]).split('\n').slice(0, 200).join('\n');
-            return `[Sheet: ${n}]\n${rows}`;
-          }).join('\n\n');
+          // Only load the authoritative sheets — the full workbook is 200KB+ of
+          // historical/working data that bloats the prompt without adding value.
+          const KEY_SHEETS = new Set([
+            'Summary',
+            '2026 DF CS AH DEMO Load Nov 28',
+            '2026 SAP Solution Field Values',
+            'FY26 Avtivity Summary',
+          ]);
+          const sheets = wb.SheetNames
+            .filter(n => KEY_SHEETS.has(n))
+            .map(n => {
+              const rows = XLSX.utils.sheet_to_csv(wb.Sheets[n]).split('\n').slice(0, 200).join('\n');
+              return `[Sheet: ${n}]\n${rows}`;
+            }).join('\n\n');
           parts.push(`=== ${f} ===\n${sheets}`);
         } catch { /* skip unreadable xlsx */ }
       }
@@ -280,12 +290,17 @@ Decision rules:
 
     const response = await anthropic.messages.create({
       model: 'claude-opus-4-7',
-      max_tokens: 4096,
+      max_tokens: 8192,
       system: 'You are a senior claims validation analyst. Return only valid JSON — no markdown, no prose outside the JSON.',
       messages: [{ role: 'user', content: content as Anthropic.MessageParam['content'] }],
     });
 
     const raw = response.content[0]?.type === 'text' ? response.content[0].text : '';
+    if (!raw) throw new Error('Empty response from Claude');
+    // Log stop reason to catch max-tokens truncation early
+    if (response.stop_reason === 'max_tokens') {
+      console.error('[validate] Claude response hit max_tokens — JSON may be truncated');
+    }
     const match = raw.match(/\{[\s\S]*\}/);
     if (!match) throw new Error('No JSON in Claude response');
 

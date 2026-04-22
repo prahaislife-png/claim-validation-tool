@@ -143,6 +143,18 @@ function loadGuidelines(): string {
     : 'Apply standard partner MDF claim validation practices.';
 }
 
+function detectImageType(base64Data: string): 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' {
+  try {
+    const buf = Buffer.from(base64Data.slice(0, 20), 'base64');
+    if (buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) return 'image/jpeg';
+    if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) return 'image/png';
+    if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return 'image/gif';
+    if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 &&
+        buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) return 'image/webp';
+  } catch { /* fall through */ }
+  return 'image/jpeg';
+}
+
 async function fetchLiveFxRates(): Promise<string> {
   try {
     const res = await fetch('https://api.frankfurter.app/latest');
@@ -323,9 +335,7 @@ Decision rules:
           title: doc.name,
         });
       } else if (doc.type.startsWith('image/')) {
-        const mt = (['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(doc.type)
-          ? doc.type
-          : 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+        const mt = detectImageType(doc.content);
         content.push({ type: 'image', source: { type: 'base64', media_type: mt, data: doc.content } });
         content.push({ type: 'text', text: `[Above image filename: ${doc.name}]` });
       } else {
